@@ -165,7 +165,30 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 4. Update this file and `task.md` with actual findings. — IN PROGRESS
 5. Start M1 only after repository/tool baseline is documented. — PENDING
 
-## 13. M0 Reconnaissance Findings (2026-10-28)
+## 13. M1 Foundation — M1.1 / M1.3 (2026-10-28)
+
+### Completed (commit 5954dc9 "M1.1: package layout, validated config profiles, ADR-001")
+
+**Package/layout (M1.1 + ADR-001):**
+- `src/superbot/` package with `__init__.py` (`__version__ = "0.1.0"`), stdlib-only import (no network/MT5/database/model at import time).
+- `pyproject.toml`: setuptools backend (`where = ["src"]`), no runtime dependencies, dev deps pytest/ruff; pytest `testpaths = ["tests"]`, `pythonpath = ["src"]`; ruff line-length 100.
+- `tests/unit/test_config.py`: 4 tests (profile enum values; valid profiles accepted; invalid profile rejected; demo-readiness rejected in V1).
+- `docs/adr/0001-package-layout.md`: records src-layout decision, rationale, alternatives (flat layout, editable-install requirement rejected), consequences.
+- `.gitignore`: Python/Windows/runtime data, secrets, spec-pack zips excluded.
+
+**Config/profiles (M1.3):**
+- `src/superbot/config.py`: `Profile` enum (`research`, `internal-simulation`); `SuperbotConfig` frozen dataclass validating profile in `__post_init__`; `InvalidConfigError`; `demo-readiness` explicitly rejected as not a V1 profile; no secrets stored.
+
+**Verification:**
+- `py -m pytest tests/ -q` → 4 passed.
+- `py -m ruff check src/ tests/` → All checks passed.
+- `py -m ruff format --check src/ tests/` → 3 files already formatted.
+- Working tree clean after commit.
+
+### In progress / next
+- `M1.2` Define versioned canonical contracts from `schema.md` (next task).
+
+## 12. M0 Reconnaissance Findings (2026-10-28)
 
 ### Repository
 - C:\SuperBot is NOT a git repo (no `.git` directory). Git 2.55.0.windows.3 installed. No branch/commit to record yet. Git initialization is a pending M1 foundation decision (not done blindly during reconnaissance).
