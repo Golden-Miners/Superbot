@@ -186,7 +186,7 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - Working tree clean after commit.
 
 ### In progress / next
-- `M1.2` Define versioned canonical contracts from `schema.md` — slice 1 done: InstrumentSpec (schema.md §2) with AssetClass/VerificationStatus enums, Decimal-or-null numeric fields, required-field validation, InvalidInstrumentError; tests pass, ruff clean. Next slice: OHLCV bar contract (§3).
+- `M1.2` Define versioned canonical contracts from `schema.md` — DONE: InstrumentSpec (§2) and OHLCVBar (§3) contracts with enums, Decimal-or-null fields, OHLC/time/interval validation, tests pass, ruff clean. Next: `M1.4` structured logs/correlation IDs + secret-redaction tests; `M1.5` supervisor/health skeleton.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 
