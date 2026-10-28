@@ -69,7 +69,7 @@ def _make_spec(name="XAUUSD", **overrides):
 def test_adapter_import_does_not_load_mt5():
     import sys
 
-    assert "MetaTrader5" not in sys.modules
+    sys.modules.pop("MetaTrader5", None)
     from superbot.data import mt5_adapter  # noqa: F401
 
     assert "MetaTrader5" not in sys.modules

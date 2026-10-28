@@ -25,6 +25,9 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["src"]
 addopts = ["-q"]
+markers = [
+    "integration: tests requiring a live MT5 terminal (skipped if unavailable)",
+]
 
 [tool.ruff]
 line-length = 100

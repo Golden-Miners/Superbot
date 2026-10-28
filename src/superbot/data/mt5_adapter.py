@@ -94,9 +94,12 @@ class Mt5Adapter:
         self.provider_id = provider_id
         self._initialized = False
 
-    def initialize(self) -> bool:
+    def initialize(self, path: str | None = None) -> bool:
         mt5 = _load_mt5()
-        ok = bool(mt5.initialize())
+        if path is not None:
+            ok = bool(mt5.initialize(path=path))
+        else:
+            ok = bool(mt5.initialize())
         self._initialized = ok
         return ok
 
@@ -115,7 +118,11 @@ class Mt5Adapter:
         symbols = mt5.symbols_get()
         if symbols is None:
             return []
-        return [str(s) for s in symbols]
+        result: list[str] = []
+        for s in symbols:
+            name = getattr(s, "name", None)
+            result.append(str(name) if name is not None else str(s))
+        return result
 
     def discover_symbol_spec(
         self, symbol: str, asset_class: AssetClass | None = None
