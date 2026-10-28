@@ -186,7 +186,9 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - Working tree clean after commit.
 
 ### In progress / next
-- `M1.2` Define versioned canonical contracts from `schema.md` — DONE: InstrumentSpec (§2) and OHLCVBar (§3) contracts with enums, Decimal-or-null fields, OHLC/time/interval validation, tests pass, ruff clean. Next: `M1.4` structured logs/correlation IDs + secret-redaction tests; `M1.5` supervisor/health skeleton.
+- `M1.2` Define versioned canonical contracts from `schema.md` — DONE: InstrumentSpec (§2) and OHLCVBar (§3) contracts with enums, Decimal-or-null fields, OHLC/time/interval validation, tests pass, ruff clean.
+- `M1.4` Structured logs/correlation IDs + secret-redaction tests — DONE: `src/superbot/observability/logging.py` (contextvar correlation ID, JsonFormatter, CorrelationFilter, `redact_secrets`, secret-key allowlist); 14 tests pass, ruff clean. Secrets never logged (schema.md §19 / PRD §14).
+- Next: `M1.5` supervisor/health model and controlled startup/shutdown skeleton.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 
