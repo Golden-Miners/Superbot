@@ -35,7 +35,7 @@
 
 - [x] `M2.1` Canonical OHLCV/instrument/provider metadata. — DONE: `src/superbot/contracts/provider.py` (ProviderSpec, ProviderType, ProviderVerificationStatus, InvalidProviderError) + tests; preserves unknown/null metadata, no guessed values; reuses InstrumentSpec/OHLCVBar from M1.2. Tests pass, ruff clean. Commit d2ba02e.
 - [x] `M2.2` Synthetic fixtures/tests for chronology, duplicates, gaps, staleness, suspicious data and availability timestamps. — DONE: `src/superbot/data/quality.py` (validate_chronology, validate_no_duplicates, validate_gaps, validate_freshness, validate_prices, validate_availability + GapReport/FreshnessReport/PriceReport) + `tests/unit/test_data_quality.py` (6 tests). Unknown/null metadata preserved, no guessed values. 28 tests pass total, ruff clean. Commit a944191.
-- [ ] `M2.3` Dataset manifest/version/hash and lineage.
+- [x] `M2.3` Dataset manifest/version/hash and lineage. — DONE: `src/superbot/data/dataset_manifest.py` (DatasetManifest, InvalidDatasetManifestError) per schema.md §4; dataset_id + content_hash uniquely identify experiment data; validates required fields, start/end ordering, non-negative bar count, string-list fields. Tests pass, ruff clean. Commit 244e991.
 - [ ] `M2.4` Session/timezone boundary validation with explicit unknown state.
 - [ ] `M2.5` Verify read-only MT5 adapter API/symbol/spec discovery only after local setup permits; no order access.
 - [ ] `M2.6` Benchmark Parquet vs alternative history stores on representative data/laptop; ADR.
