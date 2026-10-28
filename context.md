@@ -190,8 +190,10 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - `M1.4` Structured logs/correlation IDs + secret-redaction tests — DONE: `src/superbot/observability/logging.py` (contextvar correlation ID, JsonFormatter, CorrelationFilter, `redact_secrets`, secret-key allowlist); tests pass, ruff clean.
 - `M1.5` Supervisor/health model — DONE: `src/superbot/supervisor/health.py` (HealthStatus enum, HealthCheckResult, HealthRegistry); tests pass, ruff clean.
 - M1 milestone complete (M1.1–M1.6 all DONE). 18 tests pass at M1 completion; `py -m pytest` and ruff clean; no import-time network/MT5/model work.
-- `M2.1` Canonical OHLCV/instrument/provider metadata — DONE (commit d2ba02e): `src/superbot/contracts/provider.py` (ProviderSpec, ProviderType, ProviderVerificationStatus, InvalidProviderError) plus `tests/unit/test_provider.py`; preserves unknown/null metadata, no guessed broker values, reuses InstrumentSpec/OHLCVBar from M1.2. 22 tests pass total; ruff clean.
-- Next: `M2.2` Synthetic fixtures/tests for chronology, duplicates, gaps, staleness, suspicious data and availability timestamps.
+- `M2.1` Canonical OHLCV/instrument/provider metadata — DONE (commit d2ba02e): `src/superbot/contracts/provider.py` (ProviderSpec, ProviderType, ProviderVerificationStatus, InvalidProviderError) plus `tests/unit/test_provider.py`; preserves unknown/null metadata, no guessed broker values, reuses InstrumentSpec/OHLCVBar from M1.2.
+- `M2.2` Synthetic fixtures/tests for chronology, duplicates, gaps, staleness, suspicious data and availability timestamps — DONE (commit a944191): `src/superbot/data/quality.py` (validate_chronology, validate_no_duplicates, validate_gaps, validate_freshness, validate_prices, validate_availability; GapReport/FreshnessReport/PriceReport dataclasses) plus `tests/unit/test_data_quality.py` (6 tests). Preserves unknown/null metadata, no guessed broker values; source identity traceable via provider_id/source_metadata_ref; UTC vs provider timestamp distinction explicit.
+- 28 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
+- Next: `M2.3` Dataset manifest/version/hash and lineage.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 

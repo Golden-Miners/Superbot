@@ -23,8 +23,8 @@ Desktop.ini
 $RECYCLE.BIN/
 
 # Superbot local runtime (not committed)
-data/
-storage/
+/data/
+/storage/
 *.db
 *.sqlite
 secrets/
