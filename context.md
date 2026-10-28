@@ -205,7 +205,9 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - 59 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
 - `M3.1` Event-by-event reference harness — DONE (commit ce3d798): `src/superbot/simulation/reference_harness.py` (`ReferenceHarness`, `ReferenceTradeEvent`, `ReferenceRiskEvent`, `ReferenceHarnessError`, `Bar`) + `tests/unit/test_reference_harness.py` (7 tests). Preserves POC semantics exactly (next-bar-open entry, stop-first ambiguous SL/TP, stop-gap worse-open fill, explicit spread/commission/slippage costs, deterministic risk gates). Stdlib-only, no import-time network/MT5/database/model.
 - 167 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
-- Next: `M3.2` Define equivalence fixtures, strategy rules, cost conventions and acceptance tests before candidate tests.
+- `M3.2` Equivalence fixtures, strategy rules, cost conventions, acceptance tests — DONE (commit 562661d): `src/superbot/engine/equivalence.py` (`EquivalenceFixture`, `CostConvention`, `StrategyRule`, `AcceptanceResult`, `run_equivalence_acceptance`, `UnknownStrategyRuleError`) + `tests/unit/test_equivalence.py` (7 tests). Canonical 10-bar fixture, explicit cost model, machine-testable strategy rule, correctness-gate acceptance, unknown-engine rejection. M3.2a (standardized POC protocol) foundation established via acceptance framework.
+- 174 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
+- Next: `M3.3` POC NautilusTrader in isolated, pinned environment.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 

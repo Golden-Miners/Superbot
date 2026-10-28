@@ -56,6 +56,7 @@ If records conflict, identify the conflict and update source-of-truth docs. Memo
 - `src/superbot/data/storage_benchmark.py` (M2.6): `StorageBenchmark`, `StorageBackend`, `BenchmarkResult`, `UnknownFormatError` — storage format benchmark contract.
 - `src/superbot/data/storage_backends.py` (M2.6): `ParquetBackend`, `SQLiteBackend`, `CSVBackend` — concrete OHLCV storage backends.
 - `src/superbot/simulation/reference_harness.py` (M3.1): `ReferenceHarness`, `ReferenceTradeEvent`, `ReferenceRiskEvent`, `ReferenceHarnessError`, `Bar` — event-by-event reference harness extending the POC; deterministic next-bar-open entry, stop-first ambiguous SL/TP, stop-gap worse-open fill, explicit costs, deterministic risk gates; stdlib-only; tested against fixed fixture with known expected event sequence.
+- `src/superbot/engine/equivalence.py` (M3.2): `EquivalenceFixture`, `CostConvention`, `StrategyRule`, `AcceptanceResult`, `run_equivalence_acceptance`, `UnknownStrategyRuleError` — standardized equivalence framework for engine POC comparison; canonical 10-bar fixture, explicit cost model, machine-testable strategy rule, correctness-gate acceptance.
 - ADR-002 (`docs/adr/0002-ohlcv-storage-format.md`): Parquet (zstd) selected as primary OHLCV market-history store; CSV for interchange only; SQLite rejected as primary (largest footprint). Benchmark results: 5000 bars — Parquet write=2154ms/read=89ms/14KB; SQLite write=344ms/read=38ms/82KB; CSV write=36ms/read=109ms/45KB.
 
 ## 5. Memory hygiene / decision changes

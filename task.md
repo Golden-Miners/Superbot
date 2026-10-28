@@ -45,7 +45,7 @@
 ## M3 — Engine POC and selection
 
 - [x] `M3.1` Extend custom baseline fixtures into event-by-event reference harness. — DONE: `src/superbot/simulation/reference_harness.py` (`ReferenceHarness`, `ReferenceTradeEvent`, `ReferenceRiskEvent`, `ReferenceHarnessError`, `Bar`) + `tests/unit/test_reference_harness.py` (7 tests). Preserves POC semantics exactly (next-bar-open entry, stop-first, stop-gap worse-open, explicit costs, deterministic risk gates). Stdlib-only, no import-time network/MT5/database/model. Tests pass, ruff clean. Commit ce3d798.
-- [ ] `M3.2` Define equivalence fixtures, strategy rules, cost conventions and acceptance tests before candidate tests.
+- [x] `M3.2` Define equivalence fixtures, strategy rules, cost conventions and acceptance tests before candidate tests. — DONE: `src/superbot/engine/equivalence.py` (`EquivalenceFixture`, `CostConvention`, `StrategyRule`, `AcceptanceResult`, `run_equivalence_acceptance`, `UnknownStrategyRuleError`) + `tests/unit/test_equivalence.py` (7 tests). Canonical 10-bar fixture, explicit cost model, machine-testable strategy rule, correctness-gate acceptance, unknown-engine rejection. Tests pass, ruff clean. Commit 562661d.
 - [ ] `M3.2a` Freeze the standardized POC protocol: small correctness fixture + representative dataset + optional stress set; strict correctness gate; one warm-up + five measured repetitions; comprehensive metrics and reproducible evidence retention. Define any noise/additional-run rule before reviewing benchmark outcomes.
 - [ ] `M3.3` POC NautilusTrader in isolated, pinned environment.
 - [ ] `M3.4` POC QuantConnect LEAN in isolated, pinned environment; test local self-managed workflow without hosted inference/platform dependency.
