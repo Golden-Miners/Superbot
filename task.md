@@ -33,7 +33,7 @@
 
 ## M2 — Data contracts and quality pipeline
 
-- [ ] `M2.1` Canonical OHLCV/instrument/provider metadata.
+- [x] `M2.1` Canonical OHLCV/instrument/provider metadata. — DONE: `src/superbot/contracts/provider.py` (ProviderSpec, ProviderType, ProviderVerificationStatus, InvalidProviderError) + tests; preserves unknown/null metadata, no guessed values; reuses InstrumentSpec/OHLCVBar from M1.2. Tests pass, ruff clean. Commit d2ba02e.
 - [ ] `M2.2` Synthetic fixtures/tests for chronology, duplicates, gaps, staleness, suspicious data and availability timestamps.
 - [ ] `M2.3` Dataset manifest/version/hash and lineage.
 - [ ] `M2.4` Session/timezone boundary validation with explicit unknown state.
