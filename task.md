@@ -23,7 +23,7 @@
 ## M1 — Contracts, configuration and foundation
 
 - [x] `M1.1` Decide source/package/test layout from inspection; record ADR. — ADR-001 (docs/adr/0001-package-layout.md), src layout, pyproject.toml, pytest+ruff configured; commit 5954dc9.
-- [ ] `M1.2` Define versioned canonical contracts from `schema.md`. — NEXT.
+- [~] `M1.2` Define versioned canonical contracts from `schema.md`. — IN PROGRESS: Instrument spec contract (schema.md §2) done with validation, tests, lint, format (latest commit). OHLCV bar contract (§3) next slice.
 - [x] `M1.3` Add validated config and profiles `research`/`internal-simulation`; future `demo-readiness` remains guarded. — src/superbot/config.py (Profile enum, SuperbotConfig, InvalidConfigError); demo-readiness rejected; commit 5954dc9.
 - [ ] `M1.4` Structured logs/correlation IDs and secret-redaction tests.
 - [ ] `M1.5` Supervisor/health model and controlled startup/shutdown skeleton.
