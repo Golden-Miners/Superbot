@@ -207,7 +207,9 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - 167 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
 - `M3.2` Equivalence fixtures, strategy rules, cost conventions, acceptance tests — DONE (commit 562661d): `src/superbot/engine/equivalence.py` (`EquivalenceFixture`, `CostConvention`, `StrategyRule`, `AcceptanceResult`, `run_equivalence_acceptance`, `UnknownStrategyRuleError`) + `tests/unit/test_equivalence.py` (7 tests). Canonical 10-bar fixture, explicit cost model, machine-testable strategy rule, correctness-gate acceptance, unknown-engine rejection. M3.2a (standardized POC protocol) foundation established via acceptance framework.
 - 174 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
-- Next: `M3.3` POC NautilusTrader in isolated, pinned environment.
+- `M3.3` NautilusTrader POC — DONE: `src/superbot/engine/nautilus_adapter.py` + `src/superbot/engine/nautilus_strategy.py` + `tests/unit/test_nautilus_adapter.py` (7 tests). Verified against real XM MT5 terminal at `C:\Program Files\MetaTrader 5\terminal64.exe` — terminal initializes, symbols discovered, event-driven simulator runs, risk gate and cost accounting work. No live order submission (read-only).
+- 75 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
+- Next: `M3.4` POC QuantConnect LEAN in isolated environment.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 
