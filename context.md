@@ -197,7 +197,10 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - 34 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
 - `M2.4` Session/timezone boundary validation with explicit unknown state — DONE (commit 1d58ec6): `src/superbot/data/session.py` (SessionValidator, SessionTimezoneState, UnknownTimezoneError, SessionBoundaryError, validate_session_boundaries) + tests; unknown timezone/session blocks work, never assumed; UTC canonical preserved separately.
 - 39 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
-- Next: `M2.5` Verify read-only MT5 adapter API/symbol/spec discovery only after local setup permits; no order access. — BLOCKED: metatrader5 import failure (ModuleNotFoundError despite pip registration).
+- `M2.5` Read-only MT5 adapter API/symbol/spec discovery — DONE (commit 93644e2): `src/superbot/data/mt5_adapter.py` (Mt5Adapter, Mt5AdapterError, Mt5SymbolNotFound) + `tests/unit/test_mt5_adapter.py` (6 tests). Read-only discovery only (symbols, symbol specs, account info); NO order submission methods; lazy MetaTrader5 import (no import-time broker interaction); null-preserving spec mapping (never guesses contract size/tick/volume); inferred asset class flagged AMBIGUOUS; tested against a fake MetaTrader5 module (no live terminal assumed/connected).
+- Blocker resolved: `metatrader5` imports correctly as `MetaTrader5` (capital M; the PyPI package's documented import name). The earlier `ModuleNotFoundError` was due to using lowercase `metatrader5`. Confirmed `import MetaTrader5` → v5.0.6231 with `symbol_info` and `copy_rates_from_pos`. Live MT5 terminal connection NOT attempted (requires explicit local setup).
+- 45 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
+- Next: `M2.6` Benchmark Parquet vs alternative history stores on representative data/laptop; ADR.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 
