@@ -162,8 +162,8 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 1. Extract pack at new repository root. — DONE (spec files present at C:\SuperBot root + superbot_opencode_spec_pack/; duplicates noted, no overwrite)
 2. Start OpenCode using `START_PROMPT.md`. — DONE (OpenCode v2.1.2 active)
 3. Perform M0 reconnaissance; verify repository/config/ECC/MCP/skill availability and preserve current work. — DONE (see section 13)
-4. Update this file and `task.md` with actual findings. — IN PROGRESS
-5. Start M1 only after repository/tool baseline is documented. — PENDING
+4. Update this file and `task.md` with actual findings. — DONE (M0 findings in section 14; M1 complete below).
+5. Start M1 only after repository/tool baseline is documented. — DONE (M1.1–M1.6 complete; see section 13).
 
 ## 13. M1 Foundation — M1.1 / M1.3 (2026-10-28)
 
