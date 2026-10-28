@@ -187,8 +187,10 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 
 ### In progress / next
 - `M1.2` Define versioned canonical contracts from `schema.md` — DONE: InstrumentSpec (§2) and OHLCVBar (§3) contracts with enums, Decimal-or-null fields, OHLC/time/interval validation, tests pass, ruff clean.
-- `M1.4` Structured logs/correlation IDs + secret-redaction tests — DONE: `src/superbot/observability/logging.py` (contextvar correlation ID, JsonFormatter, CorrelationFilter, `redact_secrets`, secret-key allowlist); 14 tests pass, ruff clean. Secrets never logged (schema.md §19 / PRD §14).
-- Next: `M1.5` supervisor/health model and controlled startup/shutdown skeleton.
+- `M1.4` Structured logs/correlation IDs + secret-redaction tests — DONE: `src/superbot/observability/logging.py` (contextvar correlation ID, JsonFormatter, CorrelationFilter, `redact_secrets`, secret-key allowlist); tests pass, ruff clean.
+- `M1.5` Supervisor/health model — DONE: `src/superbot/supervisor/health.py` (HealthStatus enum, HealthCheckResult, HealthRegistry); tests pass, ruff clean.
+- M1 milestone complete (M1.1–M1.6 all DONE). 18 tests pass; `py -m pytest` and ruff clean; no import-time network/MT5/model work.
+- Next: `M2.1` Canonical OHLCV/instrument/provider metadata (builds on contracts in M1.2).
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 

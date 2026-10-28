@@ -26,7 +26,7 @@
 - [x] `M1.2` Define versioned canonical contracts from `schema.md`. — DONE: InstrumentSpec (§2) + OHLCVBar (§3) contracts with enums, Decimal-or-null fields, validation, tests, lint, format (commits a004d15 + latest).
 - [x] `M1.3` Add validated config and profiles `research`/`internal-simulation`; future `demo-readiness` remains guarded. — src/superbot/config.py (Profile enum, SuperbotConfig, InvalidConfigError); demo-readiness rejected; commit 5954dc9.
 - [x] `M1.4` Structured logs/correlation IDs and secret-redaction tests. — `src/superbot/observability/logging.py` (contextvar correlation ID, JsonFormatter, CorrelationFilter, secret redaction); tests pass.
-- [ ] `M1.5` Supervisor/health model and controlled startup/shutdown skeleton. — NEXT.
+- [x] `M1.5` Supervisor/health model and controlled startup/shutdown skeleton. — `src/superbot/supervisor/health.py` (HealthStatus enum, HealthCheckResult, HealthRegistry with register/run_all/overall); tests pass.
 - [x] `M1.6` Establish tests, lint/type/security/format commands and CI or local equivalent. — pytest/ruff configured (pyproject.toml); `py -m pytest` passes, ruff clean.
 
 **Acceptance:** fresh test run passes; invalid config rejected; secrets redacted; no import-time network/model/MT5 work. — MET for M1.1/M1.3 subset (4 tests pass, stdlib-only import, no secrets).
