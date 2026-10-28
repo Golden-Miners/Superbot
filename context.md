@@ -203,7 +203,9 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - `M2.6` Benchmark Parquet vs alternative history stores on representative data/laptop — DONE (commits 2ad2adc + 22d7e4e): storage benchmark abstraction + concrete backends (Parquet/SQLite/CSV) + tests. Real benchmark on laptop (5000 bars): Parquet write=2154ms/read=89ms/14KB; SQLite write=344ms/read=38ms/82KB; CSV write=36ms/read=109ms/45KB. ADR-002 (`docs/adr/0002-ohlcv-storage-format.md`) selects Parquet (zstd) as primary OHLCV store; CSV retained for interchange only; SQLite rejected as primary (largest footprint).
 - `M2` milestone complete: M2.1–M2.6 all DONE.
 - 59 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
-- Next: `M3.1` Extend custom baseline fixtures into event-by-event reference harness.
+- `M3.1` Event-by-event reference harness — DONE (commit ce3d798): `src/superbot/simulation/reference_harness.py` (`ReferenceHarness`, `ReferenceTradeEvent`, `ReferenceRiskEvent`, `ReferenceHarnessError`, `Bar`) + `tests/unit/test_reference_harness.py` (7 tests). Preserves POC semantics exactly (next-bar-open entry, stop-first ambiguous SL/TP, stop-gap worse-open fill, explicit spread/commission/slippage costs, deterministic risk gates). Stdlib-only, no import-time network/MT5/database/model.
+- 167 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
+- Next: `M3.2` Define equivalence fixtures, strategy rules, cost conventions and acceptance tests before candidate tests.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 

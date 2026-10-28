@@ -55,6 +55,7 @@ If records conflict, identify the conflict and update source-of-truth docs. Memo
 - metatrader5 import resolution: package imports correctly as `MetaTrader5` (capital M, the documented import name), v5.0.6231, with `symbol_info` and `copy_rates_from_pos`. Earlier `ModuleNotFoundError` was from using lowercase `metatrader5`.
 - `src/superbot/data/storage_benchmark.py` (M2.6): `StorageBenchmark`, `StorageBackend`, `BenchmarkResult`, `UnknownFormatError` — storage format benchmark contract.
 - `src/superbot/data/storage_backends.py` (M2.6): `ParquetBackend`, `SQLiteBackend`, `CSVBackend` — concrete OHLCV storage backends.
+- `src/superbot/simulation/reference_harness.py` (M3.1): `ReferenceHarness`, `ReferenceTradeEvent`, `ReferenceRiskEvent`, `ReferenceHarnessError`, `Bar` — event-by-event reference harness extending the POC; deterministic next-bar-open entry, stop-first ambiguous SL/TP, stop-gap worse-open fill, explicit costs, deterministic risk gates; stdlib-only; tested against fixed fixture with known expected event sequence.
 - ADR-002 (`docs/adr/0002-ohlcv-storage-format.md`): Parquet (zstd) selected as primary OHLCV market-history store; CSV for interchange only; SQLite rejected as primary (largest footprint). Benchmark results: 5000 bars — Parquet write=2154ms/read=89ms/14KB; SQLite write=344ms/read=38ms/82KB; CSV write=36ms/read=109ms/45KB.
 
 ## 5. Memory hygiene / decision changes
