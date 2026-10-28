@@ -50,6 +50,7 @@ If records conflict, identify the conflict and update source-of-truth docs. Memo
 - `src/superbot/contracts/ohlcv.py` (M1.2): `OHLCVBar`, `Timeframe` (M5/M15/H1/H4), `VolumeKind`, `QualityStatus`, `InvalidOHLCVError` — schema.md §3; OHLC relationships, time ordering, M5/M15/H1/H4 interval alignment, availability required.
 - `src/superbot/contracts/provider.py` (M2.1): `ProviderSpec`, `ProviderType`, `ProviderVerificationStatus`, `InvalidProviderError` — provider/source identity and provenance; unknown/null metadata preserved, no guessed broker values.
 - `src/superbot/data/quality.py` (M2.2): `validate_chronology`, `validate_no_duplicates`, `validate_gaps`, `validate_freshness`, `validate_prices`, `validate_availability` + `GapReport`/`FreshnessReport`/`PriceReport` — collection-level data-quality checks on OHLCV bar collections.
+- `src/superbot/data/session.py` (M2.4): `SessionValidator`, `SessionTimezoneState`, `UnknownTimezoneError`, `SessionBoundaryError`, `validate_session_boundaries` — session/timezone boundary validation; unknown timezone/session blocks work, never assumed; UTC canonical preserved separately.
 
 ## 5. Memory hygiene / decision changes
 

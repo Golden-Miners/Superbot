@@ -195,7 +195,9 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - 28 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
 - `M2.3` Dataset manifest/version/hash and lineage — DONE (commit 244e991): `src/superbot/data/dataset_manifest.py` (DatasetManifest, InvalidDatasetManifestError) per schema.md §4; dataset_id + content_hash uniquely identify experiment data; validates required fields, start/end ordering, non-negative bar count, string-list fields.
 - 34 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
-- Next: `M2.4` Session/timezone boundary validation with explicit unknown state.
+- `M2.4` Session/timezone boundary validation with explicit unknown state — DONE (commit 1d58ec6): `src/superbot/data/session.py` (SessionValidator, SessionTimezoneState, UnknownTimezoneError, SessionBoundaryError, validate_session_boundaries) + tests; unknown timezone/session blocks work, never assumed; UTC canonical preserved separately.
+- 39 tests pass total (`py -m pytest`, TEST_EXIT:True); ruff check clean; ruff format clean; `git diff --check` clean.
+- Next: `M2.5` Verify read-only MT5 adapter API/symbol/spec discovery only after local setup permits; no order access. — BLOCKED: metatrader5 import failure (ModuleNotFoundError despite pip registration).
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 
