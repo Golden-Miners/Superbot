@@ -64,7 +64,7 @@ class StorageBenchmark:
         write_ms = (time.perf_counter() - start) * 1000.0
 
         start = time.perf_counter()
-        list(backend.read("unused_path"))
+        list(backend.read())
         read_ms = (time.perf_counter() - start) * 1000.0
 
         size = backend.size_bytes()

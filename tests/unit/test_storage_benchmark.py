@@ -60,7 +60,7 @@ def test_benchmark_returns_comparable_metrics():
         "parquet",
         StorageBackend(
             write=lambda bars: None,
-            read=lambda path: [],
+            read=list,
             size_bytes=lambda: 500,
         ),
     )
