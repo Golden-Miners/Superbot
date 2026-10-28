@@ -44,11 +44,18 @@ If records conflict, identify the conflict and update source-of-truth docs. Memo
 - Second monitor: exit code 0, sampled Python child working set peak 25.77 MB with 5 samples. CPU readings were cumulative values summed repeatedly and are invalid as total CPU time. Sampling was too short to establish whole-app resource needs.
 - Neither monitor is a robust full process-tree benchmark. No candidate engine, PostgreSQL, MT5 link, local model runtime or complete app has been tested on the laptop from this evidence.
 
-## 4. Memory hygiene / decision changes
+## 4. Canonical contracts implemented
+
+- `src/superbot/contracts/instrument.py` (M1.2): `InstrumentSpec`, `AssetClass`, `VerificationStatus`, `InvalidInstrumentError` — schema.md §2; Decimal-or-null numerics, required-field validation, null never means zero.
+- `src/superbot/contracts/ohlcv.py` (M1.2): `OHLCVBar`, `Timeframe` (M5/M15/H1/H4), `VolumeKind`, `QualityStatus`, `InvalidOHLCVError` — schema.md §3; OHLC relationships, time ordering, M5/M15/H1/H4 interval alignment, availability required.
+- `src/superbot/contracts/provider.py` (M2.1): `ProviderSpec`, `ProviderType`, `ProviderVerificationStatus`, `InvalidProviderError` — provider/source identity and provenance; unknown/null metadata preserved, no guessed broker values.
+- `src/superbot/data/quality.py` (M2.2): `validate_chronology`, `validate_no_duplicates`, `validate_gaps`, `validate_freshness`, `validate_prices`, `validate_availability` + `GapReport`/`FreshnessReport`/`PriceReport` — collection-level data-quality checks on OHLCV bar collections.
+
+## 5. Memory hygiene / decision changes
 
 When a user confirms/rejects/changes a choice, update the source-of-truth document and `context.md`; mark prior decisions superseded rather than deleting history; record date/impact/ADR/task. Do not store secrets, passwords, API keys, broker account identifiers or sensitive account data in this file or external memory.
 
-## 5. Session handoff template
+## 6. Session handoff template
 
 At safe context boundaries, update:
 - Current milestone/task:
