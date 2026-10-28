@@ -53,6 +53,9 @@ If records conflict, identify the conflict and update source-of-truth docs. Memo
 - `src/superbot/data/session.py` (M2.4): `SessionValidator`, `SessionTimezoneState`, `UnknownTimezoneError`, `SessionBoundaryError`, `validate_session_boundaries` — session/timezone boundary validation; unknown timezone/session blocks work, never assumed; UTC canonical preserved separately.
 - `src/superbot/data/mt5_adapter.py` (M2.5): `Mt5Adapter`, `Mt5AdapterError`, `Mt5SymbolNotFound` — read-only MT5 symbol/spec discovery; lazy MetaTrader5 import; no order methods; `initialize(path)` launches/connects to real terminal; null-preserving spec mapping; inferred asset class flagged AMBIGUOUS. Verified against BOTH a fake MetaTrader5 module AND the real XM MT5 terminal on this laptop (C:\Program Files\MetaTrader 5\terminal64.exe): terminal initializes, symbols discovered, specs returned, account info returned, shutdown clears state.
 - metatrader5 import resolution: package imports correctly as `MetaTrader5` (capital M, the documented import name), v5.0.6231, with `symbol_info` and `copy_rates_from_pos`. Earlier `ModuleNotFoundError` was from using lowercase `metatrader5`.
+- `src/superbot/data/storage_benchmark.py` (M2.6): `StorageBenchmark`, `StorageBackend`, `BenchmarkResult`, `UnknownFormatError` — storage format benchmark contract.
+- `src/superbot/data/storage_backends.py` (M2.6): `ParquetBackend`, `SQLiteBackend`, `CSVBackend` — concrete OHLCV storage backends.
+- ADR-002 (`docs/adr/0002-ohlcv-storage-format.md`): Parquet (zstd) selected as primary OHLCV market-history store; CSV for interchange only; SQLite rejected as primary (largest footprint). Benchmark results: 5000 bars — Parquet write=2154ms/read=89ms/14KB; SQLite write=344ms/read=38ms/82KB; CSV write=36ms/read=109ms/45KB.
 
 ## 5. Memory hygiene / decision changes
 
