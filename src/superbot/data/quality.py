@@ -7,9 +7,9 @@ bar correctness is enforced by OHLCVBar (schema.md section 3).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Iterable
 
 from superbot.contracts.ohlcv import (
     InvalidOHLCVError,
@@ -60,9 +60,7 @@ def validate_no_duplicates(bars: Iterable[OHLCVBar]) -> None:
     for bar in bars:
         key = int(bar.bar_open_utc.timestamp())
         if key in seen:
-            raise InvalidOHLCVError(
-                f"duplicate bar open time: {bar.bar_open_utc}"
-            )
+            raise InvalidOHLCVError(f"duplicate bar open time: {bar.bar_open_utc}")
         seen.add(key)
 
 
@@ -113,9 +111,7 @@ def validate_availability(bars: Iterable[OHLCVBar]) -> None:
     """Reject bars missing an availability timestamp."""
     for bar in bars:
         if bar.available_at_utc is None:
-            raise InvalidOHLCVError(
-                f"missing available_at_utc for bar at {bar.bar_open_utc}"
-            )
+            raise InvalidOHLCVError(f"missing available_at_utc for bar at {bar.bar_open_utc}")
 
 
 def _timeframe_delta(timeframe: Timeframe) -> timedelta:
