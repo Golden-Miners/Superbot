@@ -142,6 +142,118 @@ class NextBarOpenSimulator:
             costs=self.cost_config.total_cost(qty),
         )
 
+    def enter_limit_long(
+        self,
+        bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]],
+        signal_index: int,
+        limit_price: Decimal | float,
+        stop: Decimal | float | None = None,
+        target: Decimal | float | None = None,
+        qty: Decimal = Decimal(1),
+        slippage: Decimal = Decimal(0),
+    ) -> NextBarFillEvent:
+        """Enter a long limit order at the next bar open if it trades through.
+
+        Limit buy at limit_price fills only if the next bar's low <= limit_price
+        (trade-through policy). Fill price is the limit price, not the open price.
+        Raises NextBarFillError if no next bar, no trade-through, or cost config missing.
+        """
+        if not self.cost_config.is_fully_configured:
+            raise NextBarFillError(f"cost config not fully configured: {self.cost_config}")
+
+        entry_index = signal_index + 1
+        if entry_index >= len(bars):
+            raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
+
+        limit_price = Decimal(str(limit_price))
+        stop = Decimal(str(stop)) if stop is not None else None
+        target = Decimal(str(target)) if target is not None else None
+        slippage = Decimal(str(slippage))
+
+        entry_bar = bars[entry_index]
+        bar_low = Decimal(str(entry_bar[3]))
+
+        # Trade-through: limit buy fills only if bar low <= limit price
+        if bar_low > limit_price:
+            raise NextBarFillError(
+                f"limit buy at {limit_price} does not trade through bar {entry_bar[0]}: low={bar_low}"
+            )
+
+        _exit_price, _exit_ts, _exit_reason = self._find_exit(
+            entry_index + 1,
+            bars,
+            side="long",
+            stop=stop,
+            target=target,
+            slippage=slippage,
+        )
+
+        return NextBarFillEvent(
+            event_type="entry",
+            timestamp=entry_bar[0],
+            signal_ts=int(bars[signal_index][0]),
+            price=limit_price,
+            amount=qty,
+            reason="entry",
+            costs=self.cost_config.total_cost(qty),
+        )
+
+    def enter_limit_short(
+        self,
+        bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]],
+        signal_index: int,
+        limit_price: Decimal | float,
+        stop: Decimal | float | None = None,
+        target: Decimal | float | None = None,
+        qty: Decimal = Decimal(1),
+        slippage: Decimal = Decimal(0),
+    ) -> NextBarFillEvent:
+        """Enter a short limit order at the next bar open if it trades through.
+
+        Limit sell at limit_price fills only if the next bar's high >= limit_price
+        (trade-through policy). Fill price is the limit price, not the open price.
+        Raises NextBarFillError if no next bar, no trade-through, or cost config missing.
+        """
+        if not self.cost_config.is_fully_configured:
+            raise NextBarFillError(f"cost config not fully configured: {self.cost_config}")
+
+        entry_index = signal_index + 1
+        if entry_index >= len(bars):
+            raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
+
+        limit_price = Decimal(str(limit_price))
+        stop = Decimal(str(stop)) if stop is not None else None
+        target = Decimal(str(target)) if target is not None else None
+        slippage = Decimal(str(slippage))
+
+        entry_bar = bars[entry_index]
+        bar_high = Decimal(str(entry_bar[2]))
+
+        # Trade-through: limit sell fills only if bar high >= limit price
+        if bar_high < limit_price:
+            raise NextBarFillError(
+                f"limit sell at {limit_price} does not trade through bar {entry_bar[0]}: high={bar_high}"
+            )
+
+        _exit_price, _exit_ts, _exit_reason = self._find_exit(
+            entry_index + 1,
+            bars,
+            side="short",
+            stop=stop,
+            target=target,
+            slippage=slippage,
+        )
+
+        return NextBarFillEvent(
+            event_type="entry",
+            timestamp=entry_bar[0],
+            signal_ts=int(bars[signal_index][0]),
+            price=limit_price,
+            amount=qty,
+            reason="entry",
+            costs=self.cost_config.total_cost(qty),
+        )
+
     def enter_short(
         self,
         bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]],
@@ -194,8 +306,8 @@ class NextBarOpenSimulator:
         start_index: int,
         bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]],
         side: str,
-        stop: Decimal,
-        target: Decimal,
+        stop: Decimal | None,
+        target: Decimal | None,
         slippage: Decimal,
     ) -> tuple[Decimal, int, str]:
         """Find exit price/timestamp/reason scanning bars after entry."""
@@ -213,11 +325,11 @@ class NextBarOpenSimulator:
                 return bar_open + slippage, bar_ts, "stop_gap"
 
             if side == "long":
-                hit_stop = bar_low <= stop
-                hit_target = bar_high >= target
+                hit_stop = stop is not None and bar_low <= stop
+                hit_target = target is not None and bar_high >= target
             else:
-                hit_stop = bar_high >= stop
-                hit_target = bar_low <= target
+                hit_stop = stop is not None and bar_high >= stop
+                hit_target = target is not None and bar_low <= target
 
             if hit_stop:
                 # Conservative stop-first

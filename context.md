@@ -214,7 +214,11 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - M3 milestone: M3.1–M3.5 DONE.
 - `M3.6` Correctness first, then runtime, process-tree peak RSS/working set, CPU, disk I/O, throughput, startup, repeatability, failure rate and critical-service impact — DONE: `src/superbot/engine/engine_benchmark.py` (`BenchmarkConfig`, `BenchmarkResult`, `EngineBenchmark`, `BenchmarkNotRun`) + `tests/unit/test_engine_benchmark.py` (4 tests). Benchmark harness enforces correctness-first gating, measures runtime/RAM/CPU/disk I/O/throughput/startup/failure rate/critical-service impact across 5 repetitions with one warm-up. Tests pass, ruff clean.
 - M3 milestone: M3.1–M3.6 DONE.
-- Next: `M4.1` Next-bar-open market fill semantics.
+- `M4.1` Next-bar-open market fill semantics — DONE: `src/superbot/simulation/next_bar_open.py` (`NextBarOpenSimulator`, `NextBarFillEvent`, `NextBarFillError`, `CostConfig`) + `tests/unit/test_next_bar_open.py` (7 tests) + `tests/unit/test_simulator_costs.py` (7 tests). Deterministic next-bar-open entry for long/short, stop-first ambiguous SL/TP, stop-gap worse-open fill, configurable spread/slippage/commission/swap_funding, explicit missing-cost blocks operation.
+- `M4.2` Same-bar SL/TP stop-first and adverse stop-gap logic — DONE: Same module `src/superbot/simulation/next_bar_open.py`. `_find_exit()` handles stop-gap (worse opening price), stop-first ambiguous same-bar SL/TP (conservative stop-first).
+- `M4.3` Configurable spread/slippage/commission/swap/funding and explicit missing-cost status — DONE: `CostConfig` dataclass with Decimal|null fields, `total_cost()`, `is_fully_configured` property. Null cost fields block operation.
+- `M4.4` Limit trade-through policy/event sequencing — DONE: `enter_limit_long`, `enter_limit_short` methods. Limit buy fills only if next bar low <= limit price; limit sell fills only if next bar high >= limit price; fill price is limit price; no trade-through raises NextBarFillError. Tests pass, ruff clean.
+- Next: `M4.5` Verified tick/contract/volume constraints; block if missing/stale.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 
