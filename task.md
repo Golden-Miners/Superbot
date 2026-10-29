@@ -97,7 +97,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 ## M7 — Portfolio/risk/resource manager
 
 - [x] `M7.1` Portfolio/strategy/correlation-group risk service. — DONE
-- [ ] `M7.2` Daily loss 3% and portfolio DD 10% halt/resume process.
+- [x] `M7.2` Daily loss 3% and portfolio DD 10% halt/resume process. — DONE
 - [ ] `M7.3` Combined open-risk cap 5%; adaptive risk and verified sizing.
 - [ ] `M7.4` Tier multipliers (0.25/0.50/0.75/1.00), monthly review, max 10% relative increase; numeric tier criteria remain OPEN.
 - [ ] `M7.5` ATR-relative volatility and hard blocks; thresholds OPEN, never guessed.
