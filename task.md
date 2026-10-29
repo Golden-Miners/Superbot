@@ -72,7 +72,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 
 ## M5 — Strategies, signals and lifecycle
 
-- [ ] `M5.1` Versioned rule schema, stable IDs, dedup/expiry/invalidation/reversal.
+- [x] `M5.1` Versioned rule schema, stable IDs, dedup/expiry/invalidation/reversal. — DONE: `src/superbot/contracts/rules.py` (`RuleType`, `RuleStatus`, `InvalidRuleError`, `RuleSpec`, `RuleStore`) + `tests/unit/test_rules.py` (20 tests). RuleSpec is versioned (schema_version), identified by stable rule_id, Decimal fields preserved as null-or-decimal. RuleStore enforces dedup (rejects duplicate rule_id), expiry (valid_to <= today excluded from active), invalidation (marks INVALID, not deleted), reversal (marks original REVERSED, creates opposite-type rule). Stdlib-only, no import-time network/MT5/database/model activity. Tests pass, ruff clean. Commit (see git log).
 - [ ] `M5.2` Trend-following/pullback definition and tests.
 - [ ] `M5.3` Liquidity-sweep/structure strategy; precise BOS/CHOCH definitions; defer OB/FVG until precise rule acceptance.
 - [ ] `M5.4` Explicit quantitative/statistical baseline and tests.
