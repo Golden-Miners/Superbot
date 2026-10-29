@@ -7,7 +7,7 @@ Stdlib-only; no import-time network/MT5/database/model activity.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 class EngineCapability:
@@ -38,7 +38,7 @@ class EngineAssessment:
             "operational": operational,
         }
 
-    def assess_gap(self) -> "GapResult":
+    def assess_gap(self) -> GapResult:
         """Assess whether there's a demonstrated capability gap.
 
         A gap exists when no operational engine covers a required capability.
@@ -78,7 +78,7 @@ class AlternativeEngineAssessment:
     def register_gap(self, capability: str) -> None:
         self.gaps.append(capability)
 
-    def assess(self) -> "AlternativeEngineResult":
+    def assess(self) -> AlternativeEngineResult:
         """Assess whether an alternative engine is needed.
 
         Returns alternative_needed=False when no capability gap exists.

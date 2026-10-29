@@ -10,9 +10,9 @@ Tests define:
 from __future__ import annotations
 
 from superbot.engine.engine_assessment import (
-    EngineCapability,
-    EngineAssessment,
     AlternativeEngineAssessment,
+    EngineAssessment,
+    EngineCapability,
 )
 
 
