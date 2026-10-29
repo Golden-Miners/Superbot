@@ -11,7 +11,6 @@ Stdlib-only at import time; nautilus_trader is imported lazily inside methods.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 
 from superbot.engine.equivalence import (
     AcceptanceResult,
@@ -31,10 +30,9 @@ def _load_nt():
     is not installed. Importing here keeps the adapter importable in all
     environments.
     """
-    import sys
 
     try:
-        import nautilus_trader as nt  # noqa: F401
+        import nautilus_trader as nt
     except ImportError as exc:
         raise NautilusTraderNotInstalled(
             "nautilus_trader package is not importable; install it or run without MT5"
@@ -66,24 +64,12 @@ class NautilusTraderAdapter:
         Returns:
             AcceptanceResult with correctness gate outcome and event trace.
         """
-        import nautilus_trader as nt
-        from nautilus_trader.backtest.engine import BacktestEngine
-        from nautilus_trader.backtest.engine import BacktestEngineConfig
-        from nautilus_trader.config import LoggingConfig
-        from nautilus_trader.model import Currency
-        from nautilus_trader.model import Money
-        from nautilus_trader.model import Venue
-        from nautilus_trader.model.enums import AccountType
-        from nautilus_trader.model.enums import OmsType
-        from nautilus_trader.model import Bar
-        from nautilus_trader.model import BarType
-        from nautilus_trader.model import Price
-        from nautilus_trader.model import Quantity
-        from nautilus_trader.model.identifiers import TraderId
+        from nautilus_trader.backtest.engine import BacktestEngine, BacktestEngineConfig
         from nautilus_trader.core.datetime import dt_to_unix_nanos
+        from nautilus_trader.model import Bar, BarType, Currency, Money, Price, Quantity, Venue
+        from nautilus_trader.model.enums import AccountType, OmsType
+        from nautilus_trader.model.identifiers import TraderId
         from nautilus_trader.test_kit.providers import TestInstrumentProvider
-        from nautilus_trader.trading.strategy import Strategy
-        from nautilus_trader.config import StrategyConfig
 
         from superbot.engine.nautilus_strategy import RefStrategy, RefStrategyConfig
 
@@ -135,9 +121,9 @@ class NautilusTraderAdapter:
         strategy_config = RefStrategyConfig(
             instrument_id=instrument.id,
             bar_type=bar_type,
-            trade_size=Decimal("1"),
-            stop=Decimal("99"),
-            target=Decimal("104"),
+            trade_size=Decimal(1),
+            stop=Decimal(99),
+            target=Decimal(104),
             entry_index=1,
         )
         strategy = RefStrategy(strategy_config)

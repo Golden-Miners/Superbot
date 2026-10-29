@@ -8,16 +8,14 @@ Tests define:
 
 Adapter under test requires nautilus_trader installed in isolated env.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
 from superbot.engine.equivalence import CostConvention, EquivalenceFixture
 from superbot.engine.nautilus_adapter import (
     NautilusTraderAdapter,
-    NautilusTraderNotInstalled,
 )
 
 
@@ -36,12 +34,12 @@ def test_cost_convention_applies_to_trade():
         swap_funding_per_unit=Decimal("0.02"),
     )
     expected = (
-        Decimal("0.1") * Decimal("10")
-        + Decimal("0.01") * Decimal("10") * 2
-        + Decimal("0.05") * Decimal("10") * 2
-        + Decimal("0.02") * Decimal("10")
+        Decimal("0.1") * Decimal(10)
+        + Decimal("0.01") * Decimal(10) * 2
+        + Decimal("0.05") * Decimal(10) * 2
+        + Decimal("0.02") * Decimal(10)
     )
-    assert cc.total_cost(Decimal("10")) == expected
+    assert cc.total_cost(Decimal(10)) == expected
 
 
 def test_equivalence_fixture_canonical_has_ten_bars():
