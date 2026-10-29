@@ -101,7 +101,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 - [x] `M7.3` Combined open-risk cap 5%; adaptive risk and verified sizing. — DONE
 - [x] `M7.4` Tier multipliers (0.25/0.50/0.75/1.00), monthly review, max 10% relative increase; numeric tier criteria remain OPEN. — DONE
 - [x] `M7.5` ATR-relative volatility and hard blocks; thresholds OPEN, never guessed. — DONE
-- [ ] `M7.6` Competing signal ranking, reserve/capacity, group limits, resize/reject semantics.
+- [x] `M7.6` Competing signal ranking, reserve/capacity, group limits, resize/reject semantics. — DONE
 - [ ] `M7.7` Boundaries/concurrency/missing-input tests and risk audit events.
 
 **Acceptance:** all gates pass; unverifiable inputs block entries; AI cannot override; breaches pause new entries while existing simulated positions continue under defined exits.
