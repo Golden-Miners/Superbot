@@ -212,7 +212,9 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - `M3.4` POC QuantConnect LEAN — DONE: `src/superbot/engine/quantconnect_adapter.py` (`LeanAdapter`, `LeanNotInstalled`, `run_lean_equivalence`) + `tests/unit/test_quantconnect_adapter.py` (3 tests: 1 passed, 2 skipped). quantconnect-lean not installed on this machine so 2 tests skipped; adapter lazily imports quantconnect, preserves null-preserving spec mapping, correctness-gate acceptance via M3.2 equivalence framework. Commit (see git log).
 - `M3.5` Assess alternative engine only for a demonstrated capability gap — DONE (commit): `src/superbot/engine/engine_assessment.py` (`EngineCapability`, `EngineAssessment`, `AlternativeEngineAssessment`, `GapResult`, `AlternativeEngineResult`) + `tests/unit/test_engine_assessment.py` (4 tests). Assessment concludes no alternative engine is needed: custom baseline, NautilusTrader, and LEAN all operational and cover complementary capabilities. Tests pass, ruff clean.
 - M3 milestone: M3.1–M3.5 DONE.
-- Next: `M3.6` Correctness first, then runtime, process-tree peak RSS/working set, CPU, disk I/O, throughput, startup, repeatability, failure rate and critical-service impact.
+- `M3.6` Correctness first, then runtime, process-tree peak RSS/working set, CPU, disk I/O, throughput, startup, repeatability, failure rate and critical-service impact — DONE: `src/superbot/engine/engine_benchmark.py` (`BenchmarkConfig`, `BenchmarkResult`, `EngineBenchmark`, `BenchmarkNotRun`) + `tests/unit/test_engine_benchmark.py` (4 tests). Benchmark harness enforces correctness-first gating, measures runtime/RAM/CPU/disk I/O/throughput/startup/failure rate/critical-service impact across 5 repetitions with one warm-up. Tests pass, ruff clean.
+- M3 milestone: M3.1–M3.6 DONE.
+- Next: `M4.1` Next-bar-open market fill semantics.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 

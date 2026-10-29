@@ -62,6 +62,7 @@ If records conflict, identify the conflict and update source-of-truth docs. Memo
 - `src/superbot/engine/quantconnect_adapter.py` (M3.4): `LeanAdapter`, `LeanNotInstalled`, `run_lean_equivalence` — read-only QuantConnect LEAN adapter for engine POC; lazy `quantconnect` import; no order methods; `initialize(path)` launches/connects to real terminal; null-preserving spec mapping; inferred asset class flagged AMBIGUOUS. Not installed on this machine (2 tests skipped); adapter structured identically to NautilusTrader adapter.
 - `src/superbot/engine/engine_assessment.py` (M3.5): `EngineCapability`, `EngineAssessment`, `AlternativeEngineAssessment`, `GapResult`, `AlternativeEngineResult` — standardized equivalence framework for engine POC comparison; canonical 10-bar fixture, explicit cost model, machine-testable strategy rule, correctness-gate acceptance.
 - ADR-002 (`docs/adr/0002-ohlcv-storage-format.md`): Parquet (zstd) selected as primary OHLCV market-history store; CSV for interchange only; SQLite rejected as primary (largest footprint). Benchmark results: 5000 bars — Parquet write=2154ms/read=89ms/14KB; SQLite write=344ms/read=38ms/82KB; CSV write=36ms/read=109ms/45KB.
+- `src/superbot/engine/engine_benchmark.py` (M3.6): `BenchmarkConfig`, `BenchmarkResult`, `EngineBenchmark`, `BenchmarkNotRun` — standardized engine POC benchmark harness; correctness-first gating; measures runtime/RAM/CPU/disk I/O/throughput/startup/failure rate/critical-service impact across warm-up + 5 measured repetitions.
 
 ## 5. Memory hygiene / decision changes
 
