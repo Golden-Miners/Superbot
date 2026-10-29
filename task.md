@@ -83,7 +83,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 
 ## M6 — Validation and promotion gates
 
-- [ ] `M6.1` Chronological train/validation/untouched-test split and leakage audit.
+- [x] `M6.1` Chronological train/validation/untouched-test split and leakage audit. — DONE: `src/superbot/data/chronological_split.py` (`SplitSpec`, `SplitResult`, `LeakageError`, `split_chronological`, `audit_leakage`, `is_chronological`) + `tests/unit/test_chronological_split.py` (14 tests). Chronological split: train = earliest, validation = middle, test = latest; gap bars between val and test; no duplicate timestamps across splits; no future-dated data in training. Stdlib-only, no import-time network/MT5/database/model activity. Tests pass, ruff clean. Commit (see git log).
 - [ ] `M6.2` >=3 walk-forward windows and metric-accounting tests.
 - [ ] `M6.3` PF/Sharpe/Sortino/DD/trade-count gates with documented conventions.
 - [ ] `M6.4` Parameter-neighbor robustness and quantitative stable-region definition (requires OPEN decision closure).
