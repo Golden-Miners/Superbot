@@ -90,7 +90,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 - [x] `M6.5` Trial counting, baselines/no-trade comparison and multiple-testing controls. — DONE: `src/superbot/strategy/trial_counting.py` (`TrialCounter`, `TrialResult`, `BaselineComparison`, `MultipleTestingCorrection`, `MultipleTestingCorrectionEngine`, `TrialRegistry`, `VersionArchive`, `VersionArchiveManager`, `set_version_archive_check`, `count_trials`, `compare_to_baseline`, `record_trial`, `evaluate_gates_with_multiple_testing`, `version_archive_check`) + `tests/unit/test_trial_counting.py` (14 tests). Trial counter tracks trial counts and pass/fail stats. Baseline comparison compares strategy P&L against no-trade baseline. Multiple testing correction via Bonferroni (raw_pass_rate * num_tests / total_tests). Version archive tracks validation attempts and archives after 3 failures. Stdlib-only, no import-time network/MT5/database/model activity. Tests pass, ruff clean. Commit (see git log).
 - [x] `M6.6` Cost-adjusted OOS and 2x-cost stress; disclose missing costs. — DONE
 - [x] `M6.7` Shadow mode with configurable opportunity count, elapsed time and data-quality conditions. — DONE
-- [ ] `M6.8` Internal-simulation eligibility and three-failed-validation-attempt version archive rule.
+- [x] `M6.8` Internal-simulation eligibility and three-failed-validation-attempt version archive rule. — DONE
 
 **Acceptance:** leaks/unrobust candidates cannot pass; untouched test isolation reproducible; no model can set PASS directly.
 
