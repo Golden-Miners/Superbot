@@ -11,6 +11,7 @@ Stdlib-only; no import-time network/MT5/database/model activity.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 
@@ -58,6 +59,103 @@ class CostConfig:
         )
 
 
+class ContractConstraintError(NextBarFillError):
+    """Raised when contract or tick constraints are invalid/missing/stale."""
+
+
+class TickConstraintError(ContractConstraintError):
+    """Raised when tick size or tick value is missing/invalid."""
+
+
+class VolumeConstraintError(NextBarFillError):
+    """Raised when volume is missing or outside min/max bounds."""
+
+
+@dataclass(frozen=True)
+class InstrumentSpec:
+    """Instrument specification with tick/contract metadata.
+
+    Null fields mean missing/stale data — blocks execution when validated.
+    """
+
+    symbol: str
+    tick_size: Decimal | None
+    tick_value: Decimal | None
+    contract_multiplier: Decimal | None
+    expiry: date | None
+
+    def __post_init__(self) -> None:
+        """Validate fields at construction; raise on missing/stale/invalid."""
+        self.validate()
+
+    def validate(self) -> None:
+        """Validate all instrument fields; raise on missing/stale/invalid."""
+        if not self.symbol or not self.symbol.strip():
+            raise ContractConstraintError("contract symbol is missing or empty")
+        if self.tick_size is None or self.tick_size <= Decimal(0):
+            raise TickConstraintError(f"tick size is missing or invalid: {self.tick_size}")
+        if self.tick_value is None or self.tick_value <= Decimal(0):
+            raise TickConstraintError(f"tick value is missing or invalid: {self.tick_value}")
+        if self.contract_multiplier is None or self.contract_multiplier <= Decimal(0):
+            raise ContractConstraintError(
+                f"contract multiplier is missing or invalid: {self.contract_multiplier}"
+            )
+        if self.expiry is None:
+            raise ContractConstraintError("contract expiry is missing")
+        if self.expiry <= date.today():
+            raise ContractConstraintError(
+                f"contract expiry is stale: {self.expiry} <= today {date.today()}"
+            )
+
+
+@dataclass
+class ConstraintValidator:
+    """Validates tick/contract/volume constraints before execution.
+
+    Missing/stale constraint fields block execution instead of silently
+    defaulting. Never substitute typical broker values.
+    """
+
+    tick_size: Decimal | None = Decimal(0)
+    tick_value: Decimal | None = Decimal(0)
+    contract_symbol: str = ""
+    contract_expiry: date | None = None
+    contract_multiplier: Decimal | None = Decimal(0)
+    min_volume: Decimal | None = Decimal(0)
+    max_volume: Decimal | None = Decimal(0)
+
+    def __post_init__(self) -> None:
+        """Validate fields at construction; raise on missing/stale/invalid."""
+        self.validate()
+
+    def validate(self) -> None:
+        """Validate all constraint fields; raise on missing/stale/invalid."""
+        if self.tick_size is None or self.tick_size <= Decimal(0):
+            raise TickConstraintError(f"tick size is missing or invalid: {self.tick_size}")
+        if self.tick_value is None or self.tick_value <= Decimal(0):
+            raise TickConstraintError(f"tick value is missing or invalid: {self.tick_value}")
+        if not self.contract_symbol or not self.contract_symbol.strip():
+            raise ContractConstraintError("contract symbol is missing or empty")
+        if self.contract_multiplier is None or self.contract_multiplier <= Decimal(0):
+            raise ContractConstraintError(
+                f"contract multiplier is missing or invalid: {self.contract_multiplier}"
+            )
+        if self.contract_expiry is None:
+            raise ContractConstraintError("contract expiry is missing")
+        if self.contract_expiry <= date.today():
+            raise ContractConstraintError(
+                f"contract expiry is stale: {self.contract_expiry} <= today {date.today()}"
+            )
+
+    def validate_volume(self, qty: Decimal) -> Decimal:
+        """Validate volume against min/max bounds; return qty if valid."""
+        if self.min_volume is not None and qty < self.min_volume:
+            raise VolumeConstraintError(f"volume {qty} below min_volume {self.min_volume}")
+        if self.max_volume is not None and qty > self.max_volume:
+            raise VolumeConstraintError(f"volume {qty} above max_volume {self.max_volume}")
+        return qty
+
+
 @dataclass(frozen=True)
 class NextBarFillEvent:
     """A single deterministic fill event."""
@@ -90,6 +188,28 @@ class NextBarOpenSimulator:
             list(bars) if bars is not None else []
         )
         self.cost_config = cost_config or CostConfig()
+        self.constraint_validator: ConstraintValidator | None = None
+
+    def set_constraints(
+        self,
+        tick_size: Decimal | None = None,
+        tick_value: Decimal | None = None,
+        contract_symbol: str = "",
+        contract_expiry: date | None = None,
+        contract_multiplier: Decimal | None = None,
+        min_volume: Decimal | None = None,
+        max_volume: Decimal | None = None,
+    ) -> None:
+        """Set tick/contract/volume constraints validated on every entry."""
+        self.constraint_validator = ConstraintValidator(
+            tick_size=tick_size,
+            tick_value=tick_value,
+            contract_symbol=contract_symbol,
+            contract_expiry=contract_expiry,
+            contract_multiplier=contract_multiplier,
+            min_volume=min_volume,
+            max_volume=max_volume,
+        )
 
     def load_bars(self, bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]]) -> None:
         """Load OHLCV bars as (ts, open, high, low, close) tuples."""
@@ -112,6 +232,9 @@ class NextBarOpenSimulator:
         if not self.cost_config.is_fully_configured:
             raise NextBarFillError(f"cost config not fully configured: {self.cost_config}")
 
+        if self.constraint_validator is not None:
+            self.constraint_validator.validate()
+
         entry_index = signal_index + 1
         if entry_index >= len(bars):
             raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
@@ -122,6 +245,10 @@ class NextBarOpenSimulator:
 
         entry_bar = bars[entry_index]
         entry_price = Decimal(str(entry_bar[1])) + slippage  # open + slippage for long
+
+        # Validate volume against constraints
+        if self.constraint_validator is not None:
+            self.constraint_validator.validate_volume(qty)
 
         _exit_price, _exit_ts, _exit_reason = self._find_exit(
             entry_index + 1,
@@ -161,6 +288,9 @@ class NextBarOpenSimulator:
         if not self.cost_config.is_fully_configured:
             raise NextBarFillError(f"cost config not fully configured: {self.cost_config}")
 
+        if self.constraint_validator is not None:
+            self.constraint_validator.validate()
+
         entry_index = signal_index + 1
         if entry_index >= len(bars):
             raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
@@ -172,6 +302,10 @@ class NextBarOpenSimulator:
 
         entry_bar = bars[entry_index]
         bar_low = Decimal(str(entry_bar[3]))
+
+        # Validate volume against constraints
+        if self.constraint_validator is not None:
+            self.constraint_validator.validate_volume(qty)
 
         # Trade-through: limit buy fills only if bar low <= limit price
         if bar_low > limit_price:
@@ -217,6 +351,9 @@ class NextBarOpenSimulator:
         if not self.cost_config.is_fully_configured:
             raise NextBarFillError(f"cost config not fully configured: {self.cost_config}")
 
+        if self.constraint_validator is not None:
+            self.constraint_validator.validate()
+
         entry_index = signal_index + 1
         if entry_index >= len(bars):
             raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
@@ -228,6 +365,10 @@ class NextBarOpenSimulator:
 
         entry_bar = bars[entry_index]
         bar_high = Decimal(str(entry_bar[2]))
+
+        # Validate volume against constraints
+        if self.constraint_validator is not None:
+            self.constraint_validator.validate_volume(qty)
 
         # Trade-through: limit sell fills only if bar high >= limit price
         if bar_high < limit_price:
@@ -271,6 +412,9 @@ class NextBarOpenSimulator:
         if not self.cost_config.is_fully_configured:
             raise NextBarFillError(f"cost config not fully configured: {self.cost_config}")
 
+        if self.constraint_validator is not None:
+            self.constraint_validator.validate()
+
         entry_index = signal_index + 1
         if entry_index >= len(bars):
             raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
@@ -281,6 +425,10 @@ class NextBarOpenSimulator:
 
         entry_bar = bars[entry_index]
         entry_price = Decimal(str(entry_bar[1])) - slippage  # open - slippage for short
+
+        # Validate volume against constraints
+        if self.constraint_validator is not None:
+            self.constraint_validator.validate_volume(qty)
 
         _exit_price, _exit_ts, _exit_reason = self._find_exit(
             entry_index + 1,

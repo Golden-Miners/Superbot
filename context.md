@@ -218,7 +218,8 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - `M4.2` Same-bar SL/TP stop-first and adverse stop-gap logic — DONE: Same module `src/superbot/simulation/next_bar_open.py`. `_find_exit()` handles stop-gap (worse opening price), stop-first ambiguous same-bar SL/TP (conservative stop-first).
 - `M4.3` Configurable spread/slippage/commission/swap/funding and explicit missing-cost status — DONE: `CostConfig` dataclass with Decimal|null fields, `total_cost()`, `is_fully_configured` property. Null cost fields block operation.
 - `M4.4` Limit trade-through policy/event sequencing — DONE: `enter_limit_long`, `enter_limit_short` methods. Limit buy fills only if next bar low <= limit price; limit sell fills only if next bar high >= limit price; fill price is limit price; no trade-through raises NextBarFillError. Tests pass, ruff clean.
-- Next: `M4.5` Verified tick/contract/volume constraints; block if missing/stale.
+- `M4.5` Verified tick/contract/volume constraints; block if missing/stale — DONE: `ContractConstraintError`, `TickConstraintError`, `VolumeConstraintError`, `InstrumentSpec`, `ConstraintValidator`, `set_constraints()` — tick size/value >0; contract symbol/expiry/multiplier present and non-stale; volume within min/max bounds. Validated on every entry (market and limit).
+- Next: `M4.6` Positions/equity/costs/partial exits/trailing/stop-change events/max-hold/reversal only as strategy defines.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 
