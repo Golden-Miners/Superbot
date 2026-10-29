@@ -60,9 +60,9 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 
 ## M4 — Deterministic simulator and accounting
 
-- [ ] `M4.1` Next-bar-open market fill semantics.
-- [ ] `M4.2` Same-bar SL/TP stop-first and adverse stop-gap logic.
-- [ ] `M4.3` Configurable spread/slippage/commission/swap/funding and explicit missing-cost status.
+- [x] `M4.1` Next-bar-open market fill semantics. — DONE: `src/superbot/simulation/next_bar_open.py` (`NextBarOpenSimulator`, `NextBarFillEvent`, `NextBarFillError`) + `tests/unit/test_next_bar_open.py` (5 tests). Deterministic next-bar-open entry for long/short, stop-first ambiguous SL/TP, stop-gap worse-open fill, explicit costs. Stdlib-only, no import-time network/MT5/database/model. Tests pass, ruff clean. Commit (see git log).
+- [x] `M4.2` Same-bar SL/TP stop-first and adverse stop-gap logic. — DONE: Same module `src/superbot/simulation/next_bar_open.py`. `_find_exit()` handles stop-gap (worse opening price), stop-first ambiguous same-bar SL/TP (conservative stop-first). Tests pass, ruff clean. Commit (see git log).
+- [x] `M4.3` Configurable spread/slippage/commission/swap/funding and explicit missing-cost status. — DONE: `src/superbot/simulation/next_bar_open.py` (`CostConfig` dataclass with spread/slippage/commission/swap_funding fields, `total_cost()` method, `is_fully_configured` property) + `tests/unit/test_simulator_costs.py` (7 tests). Null cost fields block operation instead of silently defaulting to zero. Stdlib-only, no import-time network/MT5/database/model activity. Tests pass, ruff clean. Commit (see git log).
 - [ ] `M4.4` Limit trade-through policy/event sequencing.
 - [ ] `M4.5` Verified tick/contract/volume constraints; block if missing/stale.
 - [ ] `M4.6` Positions/equity/costs/partial exits/trailing/stop-change events/max-hold/reversal only as strategy defines.

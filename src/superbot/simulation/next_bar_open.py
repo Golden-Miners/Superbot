@@ -1,4 +1,4 @@
-"""Next-bar-open market fill semantics for M4.1.
+"""Next-bar-open market fill semantics for M4.1/M4.3.
 
 Provides a deterministic event-driven simulator reference that fills market
 entries at the next bar open, consistent with the custom baseline POC
@@ -19,6 +19,46 @@ class NextBarFillError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class CostConfig:
+    """Modeled trading costs, all Decimal.
+
+    Null does not mean zero. Missing/stale cost fields block the operation
+    instead of silently defaulting to zero. Never substitute typical broker
+    values.
+    """
+
+    spread: Decimal | None = Decimal(0)
+    slippage: Decimal | None = Decimal(0)
+    commission: Decimal | None = Decimal(0)
+    swap_funding: Decimal | None = Decimal(0)
+
+    def total_cost(self, qty: Decimal) -> Decimal:
+        """Total round-trip cost for qty units.
+
+        spread + entry/exit slippage + entry/exit commission + swap_funding.
+        """
+        return (
+            self.spread * qty
+            + self.slippage * qty * Decimal(2)
+            + self.commission * qty * Decimal(2)
+            + self.swap_funding * qty
+        )
+
+    @property
+    def is_fully_configured(self) -> bool:
+        """All cost fields are present (not None)."""
+        return all(
+            getattr(self, name) is not None
+            for name in (
+                "spread",
+                "slippage",
+                "commission",
+                "swap_funding",
+            )
+        )
+
+
+@dataclass(frozen=True)
 class NextBarFillEvent:
     """A single deterministic fill event."""
 
@@ -28,6 +68,7 @@ class NextBarFillEvent:
     price: Decimal
     amount: Decimal
     reason: str
+    costs: Decimal = Decimal(0)  # total costs applied to this fill
 
 
 class NextBarOpenSimulator:
@@ -36,10 +77,19 @@ class NextBarOpenSimulator:
     Implements next-bar-open market fill semantics matching the custom
     baseline POC (superbot_poc.py). Candidate engines (NautilusTrader, LEAN)
     must reproduce this event sequence for identical inputs.
+
+    Stdlib-only; no import-time network/MT5/database/model activity.
     """
 
-    def __init__(self) -> None:
-        self._bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]] = []
+    def __init__(
+        self,
+        bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]] | None = None,
+        cost_config: CostConfig | None = None,
+    ) -> None:
+        self._bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]] = (
+            list(bars) if bars is not None else []
+        )
+        self.cost_config = cost_config or CostConfig()
 
     def load_bars(self, bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]]) -> None:
         """Load OHLCV bars as (ts, open, high, low, close) tuples."""
@@ -59,6 +109,9 @@ class NextBarOpenSimulator:
         Entry occurs at bar_index + 1 open (next bar after signal).
         Raises NextBarFillError if no next bar exists.
         """
+        if not self.cost_config.is_fully_configured:
+            raise NextBarFillError(f"cost config not fully configured: {self.cost_config}")
+
         entry_index = signal_index + 1
         if entry_index >= len(bars):
             raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
@@ -86,6 +139,7 @@ class NextBarOpenSimulator:
             price=entry_price,
             amount=qty,
             reason="entry",
+            costs=self.cost_config.total_cost(qty),
         )
 
     def enter_short(
@@ -102,6 +156,9 @@ class NextBarOpenSimulator:
         Entry occurs at bar_index + 1 open (next bar after signal).
         Raises NextBarFillError if no next bar exists.
         """
+        if not self.cost_config.is_fully_configured:
+            raise NextBarFillError(f"cost config not fully configured: {self.cost_config}")
+
         entry_index = signal_index + 1
         if entry_index >= len(bars):
             raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
@@ -129,6 +186,7 @@ class NextBarOpenSimulator:
             price=entry_price,
             amount=qty,
             reason="entry",
+            costs=self.cost_config.total_cost(qty),
         )
 
     def _find_exit(
