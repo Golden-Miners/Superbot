@@ -1,9 +1,11 @@
-"""Next-bar-open market fill semantics for M3.6.
+"""Next-bar-open market fill semantics for M4.1.
 
 Provides a deterministic event-driven simulator reference that fills market
 entries at the next bar open, consistent with the custom baseline POC
-(superbot_poc.py). Stdlib-only; no import-time network/MT5/database/model
-activity.
+(superbot_poc.py). Candidate engines (NautilusTrader, LEAN) must reproduce
+this event sequence for identical inputs.
+
+Stdlib-only; no import-time network/MT5/database/model activity.
 """
 
 from __future__ import annotations
@@ -63,15 +65,58 @@ class NextBarOpenSimulator:
 
         stop = Decimal(str(stop))
         target = Decimal(str(target))
+        slippage = Decimal(str(slippage))
 
         entry_bar = bars[entry_index]
         entry_price = Decimal(str(entry_bar[1])) + slippage  # open + slippage for long
 
-        # Find exit
         _exit_price, _exit_ts, _exit_reason = self._find_exit(
             entry_index + 1,
             bars,
             side="long",
+            stop=stop,
+            target=target,
+            slippage=slippage,
+        )
+
+        return NextBarFillEvent(
+            event_type="entry",
+            timestamp=entry_bar[0],
+            signal_ts=int(bars[signal_index][0]),
+            price=entry_price,
+            amount=qty,
+            reason="entry",
+        )
+
+    def enter_short(
+        self,
+        bars: list[tuple[int, Decimal, Decimal, Decimal, Decimal]],
+        signal_index: int,
+        stop: Decimal | float,
+        target: Decimal | float,
+        qty: Decimal = Decimal(1),
+        slippage: Decimal = Decimal(0),
+    ) -> NextBarFillEvent:
+        """Enter a short position at the next bar open.
+
+        Entry occurs at bar_index + 1 open (next bar after signal).
+        Raises NextBarFillError if no next bar exists.
+        """
+        entry_index = signal_index + 1
+        if entry_index >= len(bars):
+            raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
+
+        stop = Decimal(str(stop))
+        target = Decimal(str(target))
+        slippage = Decimal(str(slippage))
+
+        entry_bar = bars[entry_index]
+        entry_price = Decimal(str(entry_bar[1])) - slippage  # open - slippage for short
+
+        _exit_price, _exit_ts, _exit_reason = self._find_exit(
+            entry_index + 1,
+            bars,
+            side="short",
             stop=stop,
             target=target,
             slippage=slippage,
@@ -101,7 +146,6 @@ class NextBarOpenSimulator:
             bar_open = Decimal(str(bar[1]))
             bar_high = Decimal(str(bar[2]))
             bar_low = Decimal(str(bar[3]))
-            Decimal(str(bar[4]))
             bar_ts = int(bar[0])
 
             # Stop gap: check bar open first
