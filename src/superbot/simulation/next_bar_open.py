@@ -490,3 +490,164 @@ class NextBarOpenSimulator:
         # End of data
         last_bar = bars[-1]
         return Decimal(str(last_bar[4])), int(last_bar[0]), "end_of_data"  # close price
+
+
+class PositionEventType:
+    """Position event types."""
+
+    ENTRY = "entry"
+    EXIT = "exit"
+    PARTIAL_EXIT = "partial_exit"
+    STOP_CHANGE = "stop_change"
+    MAX_HOLD_EXIT = "max_hold_exit"
+    REVERSAL_EXIT = "reversal_exit"
+
+
+@dataclass(frozen=True)
+class PositionEvent:
+    """A single position lifecycle event."""
+
+    event_type: str  # PositionEventType.*
+    ts: int  # bar open timestamp (UTC epoch ms)
+    price: Decimal  # price at event
+    qty: Decimal  # quantity affected by event
+
+
+@dataclass
+class Position:
+    """Tracks a single position from entry through exit.
+
+    Supports partial exits, equity mark-to-market, cost aggregation,
+    trailing stops, max-hold, and reversal.
+    """
+
+    side: str  # "long" or "short"
+    entry_price: Decimal
+    qty: Decimal
+    entry_ts: int
+
+    def __post_init__(self) -> None:
+        self.open_qty = self.qty
+        self.total_costs: Decimal = Decimal(0)
+        self.closed_ts: int | None = None
+        self.exit_price: Decimal | None = None
+        self.events: list[PositionEvent] = [
+            PositionEvent(PositionEventType.ENTRY, self.entry_ts, self.entry_price, self.qty)
+        ]
+
+    def exit(self, price: Decimal, qty: Decimal, ts: int) -> None:
+        """Exit `qty` units of the position at `price` and `ts`."""
+        if qty > self.open_qty:
+            raise NextBarFillError(f"exit qty {qty} exceeds open_qty {self.open_qty}")
+        self.open_qty -= qty
+        self.events.append(PositionEvent(PositionEventType.EXIT, ts, price, qty))
+        if self.open_qty == Decimal(0):
+            self.closed_ts = ts
+            self.exit_price = price
+
+    def is_closed(self) -> bool:
+        """True when open_qty reaches zero."""
+        return self.open_qty == Decimal(0)
+
+    def add_costs(self, costs: Decimal) -> None:
+        """Add costs to the position."""
+        self.total_costs += costs
+
+    def equity_at(self, current_price: Decimal, costs: Decimal) -> Decimal:
+        """Mark-to-market equity at current_price, subtracting costs."""
+        if self.side == "long":
+            pnl = (current_price - self.entry_price) * self.qty
+        else:
+            pnl = (self.entry_price - current_price) * self.qty
+        return pnl - self.total_costs - costs
+
+
+@dataclass
+class TrailingStop:
+    """Trailing stop that trails price by a fixed distance.
+
+    For long positions, stop only moves up. For short positions, stop only moves down.
+    """
+
+    distance: Decimal
+    side: str  # "long" or "short"
+
+    def __post_init__(self) -> None:
+        self.stop_price: Decimal | None = None
+
+    def update(self, current_price: Decimal) -> Decimal | None:
+        """Update trailing stop from current price; return new stop price."""
+        if self.side == "long":
+            candidate = current_price - self.distance
+            if self.stop_price is None or candidate > self.stop_price:
+                self.stop_price = candidate
+        else:
+            candidate = current_price + self.distance
+            if self.stop_price is None or candidate < self.stop_price:
+                self.stop_price = candidate
+        return self.stop_price
+
+
+@dataclass(frozen=True)
+class StopChangeEvent:
+    """Records a stop price change event."""
+
+    ts: int
+    old_stop: Decimal
+    new_stop: Decimal
+    reason: str  # "trailing" | "manual"
+
+
+@dataclass(frozen=True)
+class PartialExit:
+    """Records a partial exit of a position."""
+
+    ts: int
+    price: Decimal
+    qty: Decimal
+
+
+@dataclass
+class MaxHoldExit:
+    """Auto-exits position after max_hold_bars regardless of stop/target."""
+
+    max_hold_bars: int
+    entry_ts: int
+
+    def should_exit(self, current_ts: int) -> bool:
+        """True when current_ts - entry_ts >= max_hold_bars."""
+        return (current_ts - self.entry_ts) >= self.max_hold_bars
+
+
+@dataclass
+class ReversalExit:
+    """Reverses a position to the opposite direction.
+
+    Only triggered by explicit strategy signal, never automatic.
+    """
+
+    def reverse(
+        self,
+        position: Position,
+        opposite_side: str,
+        new_price: Decimal,
+        new_ts: int,
+    ) -> Position:
+        """Close `position` and return a new Position in `opposite_side`."""
+        position.exit(position.exit_price or new_price, position.open_qty, new_ts)
+        return Position(
+            side=opposite_side,
+            entry_price=new_price,
+            qty=position.qty,
+            entry_ts=new_ts,
+        )
+
+
+@dataclass(frozen=True)
+class EquitySnapshot:
+    """Equity snapshot at a point in time."""
+
+    ts: int
+    price: Decimal
+    equity: Decimal
+    unrealized_pnl: Decimal
