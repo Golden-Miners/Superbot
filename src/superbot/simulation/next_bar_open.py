@@ -239,8 +239,8 @@ class NextBarOpenSimulator:
         if entry_index >= len(bars):
             raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
 
-        stop = Decimal(str(stop))
-        target = Decimal(str(target))
+        stop = Decimal(str(stop)) if stop is not None else None
+        target = Decimal(str(target)) if target is not None else None
         slippage = Decimal(str(slippage))
 
         entry_bar = bars[entry_index]
@@ -419,8 +419,8 @@ class NextBarOpenSimulator:
         if entry_index >= len(bars):
             raise NextBarFillError(f"no next bar for entry at signal index {signal_index}")
 
-        stop = Decimal(str(stop))
-        target = Decimal(str(target))
+        stop = Decimal(str(stop)) if stop is not None else None
+        target = Decimal(str(target)) if target is not None else None
         slippage = Decimal(str(slippage))
 
         entry_bar = bars[entry_index]

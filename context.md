@@ -220,7 +220,8 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - `M4.4` Limit trade-through policy/event sequencing — DONE: `enter_limit_long`, `enter_limit_short` methods. Limit buy fills only if next bar low <= limit price; limit sell fills only if next bar high >= limit price; fill price is limit price; no trade-through raises NextBarFillError. Tests pass, ruff clean.
 - `M4.5` Verified tick/contract/volume constraints; block if missing/stale — DONE: `ContractConstraintError`, `TickConstraintError`, `VolumeConstraintError`, `InstrumentSpec`, `ConstraintValidator`, `set_constraints()` — tick size/value >0; contract symbol/expiry/multiplier present and non-stale; volume within min/max bounds. Validated on every entry (market and limit).
 - `M4.6` Positions/equity/costs/partial exits/trailing/stop-change events/max-hold/reversal only as strategy defines — DONE: `Position`, `PositionEvent`, `PositionEventType`, `TrailingStop`, `StopChangeEvent`, `MaxHoldExit`, `ReversalExit`, `PartialExit`, `EquitySnapshot` — position tracks entry/exit/partial exit with equity mark-to-market and cost aggregation; trailing stop never retreats (long) or advances (short); max-hold auto-exits after N bars; reversal only via explicit strategy signal.
-- Next: `M4.7` Differential/property tests and deterministic replay.
+- `M4.7` Differential/property tests and deterministic replay — DONE: `tests/unit/test_deterministic_replay.py` (14 tests). Same fill inputs produce identical event sequences across replays; event sequence hash stable; different cost configs produce different costs; different bar ordering produces different results; no look-ahead; limit fill price = limit price.
+- Next: `M5.1` Versioned rule schema, stable IDs, dedup/expiry/invalidation/reversal.
 
 ## 12. M0 Reconnaissance Findings (2026-10-28)
 
