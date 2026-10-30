@@ -3,7 +3,11 @@ name = "superbot"
 version = "0.1.0"
 description = "Superbot: local-first AI trading research, backtesting and internal simulation"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastapi>=0.100,<1",
+    "streamlit>=1.30,<2",
+    "plotly>=5,<9",
+]
 
 [project.optional-dependencies]
 dev = [
