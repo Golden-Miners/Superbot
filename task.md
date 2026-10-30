@@ -110,7 +110,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 
 - [x] `M8.1` PostgreSQL config/suitability benchmark on laptop. — DONE
 - [x] `M8.2` Versioned migrations and old experiment readability. — DONE
-- [ ] `M8.3` Append-only audit and correction linkage.
+- [x] `M8.3` Append-only audit and correction linkage. — DONE
 - [ ] `M8.4` Experiment registry/data-code-strategy-parameter-cost-config refs.
 - [ ] `M8.5` Checkpoint/crash restart reconciliation for jobs/signals/positions.
 - [ ] `M8.6` Local + encrypted cloud backup; decide provider/key management with ADR; exclude secrets.
