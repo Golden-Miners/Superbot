@@ -121,7 +121,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 
 ## M9 — Local AI and runtime agents
 
-- [ ] `M9.1` Benchmark Ollama vs llama.cpp on laptop/desktop using task fixtures.
+- [x] `M9.1` Benchmark Ollama vs llama.cpp on laptop/desktop using task fixtures. — DONE
 - [ ] `M9.2` Qualify task/model routes on quality, schema, repeatability, latency, memory.
 - [ ] `M9.3` Implement agent contracts/permissions/proposal store/deterministic orchestration.
 - [ ] `M9.4` Analyst, strategy proposer, reviewer and diagnostic/improvement roles.
