@@ -142,7 +142,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 
 ## M11 — Dashboard/UX
 
-- [ ] `M11.1` Select UI/API/chart stack using inspection + ADR.
+- [x] `M11.1` Select UI/API/chart stack using inspection + ADR. — DONE
 - [ ] `M11.2` Overview, data explorer, jobs, strategy/signals, validation, portfolio/risk, audit/experiments, settings/profiles.
 - [ ] `M11.3` Auth sessions/roles/redaction/local binding/private VPN docs.
 - [ ] `M11.4` Browser tests, empty/loading/error states, accessibility and actual screenshot evidence.
