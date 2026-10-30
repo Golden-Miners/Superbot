@@ -21,7 +21,7 @@ If records conflict, identify the conflict and update source-of-truth docs. Memo
 - First test machine: Windows 10 Lenovo laptop, approximately 8 GB RAM, 2 logical CPU threads and HDD. Later target: Windows 10 desktop, approximately 12 GB RAM, Intel i5-3470 and AMD Radeon R9 290. Exact GPU VRAM/driver, free disk and disk health remain unverified.
 - Assets: Gold, Silver, Bitcoin, Ethereum, US Oil. Timeframes M5, M15, H1, H4.
 - Initial provider: XM MT5, read-only market data/account balance/specs. Verify actual symbols/metadata in user's terminal.
-- Local PostgreSQL is selected for application records. OHLCV storage format remains OPEN; benchmark Parquet and alternatives.
+- Local PostgreSQL is selected for application records. OHLCV storage format resolved: Parquet (zstd) per ADR-002 (M2.6); CSV for interchange only; SQLite rejected as primary.
 - Governing principle: AI proposes, deterministic code verifies, risk limits decide.
 - Three reference strategy families: trend-following/pullback; liquidity sweep/market structure; quantitative/statistical. Shared framework, separately versioned strategies, not one LLM agent per strategy.
 - Risk limits: open risk 5%; daily loss 3% of starting daily equity; portfolio DD halt 10%; strategy OOS DD <=15%; normal OOS minimum 100 completed trades; >=3 walk-forward windows; PF >=1.20; Sharpe >=1.0; Sortino >=1.5; >=2 of 3 windows positive. Preserve exact metric convention/config.
@@ -65,7 +65,23 @@ If records conflict, identify the conflict and update source-of-truth docs. Memo
 - ADR-002 (`docs/adr/0002-ohlcv-storage-format.md`): Parquet (zstd) selected as primary OHLCV market-history store; CSV for interchange only; SQLite rejected as primary (largest footprint). Benchmark results: 5000 bars — Parquet write=2154ms/read=89ms/14KB; SQLite write=344ms/read=38ms/82KB; CSV write=36ms/read=109ms/45KB.
 - `src/superbot/engine/engine_benchmark.py` (M3.6): `BenchmarkConfig`, `BenchmarkResult`, `EngineBenchmark`, `BenchmarkNotRun` — standardized engine POC benchmark harness; correctness-first gating; measures runtime/RAM/CPU/disk I/O/throughput/startup/failure rate/critical-service impact across warm-up + 5 measured repetitions.
 
-## 5. Memory hygiene / decision changes
+## 5. M11 Dashboard/UX and M12 Release Hardening (complete, committed)
+
+- M11.1 (ADR-004): UI/API/chart stack selected — Streamlit UI, FastAPI API, Plotly charts, pip packaging; `src/superbot/m11/ui_stack.py`.
+- M11.2: All 8 dashboard surfaces implemented via FastAPI backend (`src/superbot/m11/api.py`) with Plotly charts (`m11/charts.py`) and Streamlit renderers (`m11/ui.py`); entry point `m11/app.py`. State labeled `internal_simulation`/`synthetic_fixture`; no live orders; localhost-only binding.
+- M11.3: Auth sessions/roles/redaction/local binding (`src/superbot/m11/auth.py`): SessionStore with TTL expiry, role-based authorization (owner/operator/viewer), secret redaction, `validate_bind_host` rejects public hosts; `docs/private-vpn-access.md`.
+- M11.4: Playwright browser tests (`tests/e2e/test_m11_browser.py`) driving real Chromium against live Streamlit app; screenshot evidence (`tests/e2e/screenshots/overview.png`, `data_explorer.png`); accessibility and no-error-alert checks.
+- M12.1: All test suites exist and pass (68 unit files + e2e).
+- M12.2: ruff static clean; security scan (no hardcoded secrets, no public binding, secrets redacted, owner-only settings).
+- M12.3: `docs/install-run.md` — install/run + known-good configuration.
+- M12.4: `docs/migration-laptop-to-desktop.md` — export/transfer/install/revalidate/sign-off procedure.
+- M12.5: `docs/release-review-checklist.md` — 12 mandatory gates + explicit human approval; `docs/V1-STATUS-AUDIT.md` — cross-milestone audit.
+
+TDD evidence: `docs/tdd/m11-2-dashboard-surfaces.tdd.md`, `m11-3-auth-sessions-roles-redaction-local-binding-vpn.tdd.md`, `m11-4-browser-tests-accessibility-screenshots.tdd.md`.
+
+NOTE: M11.2–M11.4 and M12 commits do not retroactively satisfy the TDD checkpoint commits (RED/GREEN/refactor) missed during earlier stages.
+
+## 6. Memory hygiene / decision changes
 
 When a user confirms/rejects/changes a choice, update the source-of-truth document and `context.md`; mark prior decisions superseded rather than deleting history; record date/impact/ADR/task. Do not store secrets, passwords, API keys, broker account identifiers or sensitive account data in this file or external memory.
 
