@@ -140,7 +140,7 @@ The POC plan uses the following selected defaults for fair engine/storage/runtim
 
 1. Engine/combination: custom baseline vs NautilusTrader vs LEAN; choose by comparable evidence and weighted score.
 2. OHLCV storage format and partitioning.
-3. Frontend/UI framework, API/web framework, charting and desktop packaging.
+3. Frontend/UI framework, API/web framework, charting and desktop packaging — RESOLVED (ADR-004; M11.1–M11.2): Streamlit UI, FastAPI API, Plotly charts, pip packaging; implemented in src/superbot/m11/{api,charts,ui,app}.py with TDD evidence in docs/tdd/m11-2-*.tdd.md.
 4. Ollama vs llama.cpp and qualified local model/version/quantization on each machine.
 5. Per-tier minimum trades and elapsed time; tier advancement protocol.
 6. Numerical ATR risk curve, floors/ceilings/max volatility.
@@ -150,7 +150,7 @@ The POC plan uses the following selected defaults for fair engine/storage/runtim
 10. Metric annualization/risk-free conventions; robust-region numeric definition; deterioration thresholds.
 11. Cost inputs when broker data omits them; disclose missing costs and block as required.
 12. Cloud backup provider, key management and bandwidth/capacity.
-13. Authentication implementation/private VPN setup.
+13. Authentication implementation/private VPN setup — RESOLVED (M11.3): src/superbot/m11/auth.py with SessionStore sessions/roles, redact_secret, validate_bind_host (localhost-only), docs/private-vpn-access.md; TDD evidence in docs/tdd/m11-3-*.tdd.md. Backend enforces owner-only settings; no live orders; no public binding.
 14. News-source list and implementation phase.
 15. Job intervals/resource thresholds: configurable, not hard-coded without decision.
 16. Stable signal identity and precise OB/FVG definitions if included.

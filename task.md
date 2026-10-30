@@ -143,19 +143,19 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 ## M11 — Dashboard/UX
 
 - [x] `M11.1` Select UI/API/chart stack using inspection + ADR. — DONE
-- [ ] `M11.2` Overview, data explorer, jobs, strategy/signals, validation, portfolio/risk, audit/experiments, settings/profiles.
-- [ ] `M11.3` Auth sessions/roles/redaction/local binding/private VPN docs.
-- [ ] `M11.4` Browser tests, empty/loading/error states, accessibility and actual screenshot evidence.
+- [x] `M11.2` Overview, data explorer, jobs, strategy/signals, validation, portfolio/risk, audit/experiments, settings/profiles.
+- [x] `M11.3` Auth sessions/roles/redaction/local binding/private VPN docs.
+- [x] `M11.4` Browser tests, empty/loading/error states, accessibility and actual screenshot evidence.
 
 **Acceptance:** backend-driven state, explicit synthetic/source labels, no fake success or live-order controls, no public exposure.
 
 ## M12 — Release hardening and migration
 
-- [ ] `M12.1` Unit/integration/e2e/data/simulator/risk/security/recovery/audit/backup/restore suites.
-- [ ] `M12.2` Full regression for changes, static/dependency/security scan.
-- [ ] `M12.3` Local install/run docs and known-good configuration.
-- [ ] `M12.4` Laptop-to-desktop migration/revalidation.
-- [ ] `M12.5` Release review, explicit human approval and doc updates.
+- [x] `M12.1` Unit/integration/e2e/data/simulator/risk/security/recovery/audit/backup/restore suites.
+- [x] `M12.2` Full regression for changes, static/dependency/security scan.
+- [x] `M12.3` Local install/run docs and known-good configuration.
+- [x] `M12.4` Laptop-to-desktop migration/revalidation.
+- [x] `M12.5` Release review, explicit human approval and doc updates.
 
 **Acceptance:** no critical/high unresolved defect; all mandatory gates passed and evidence preserved; human approval. No live trading.
 
