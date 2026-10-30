@@ -133,7 +133,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 
 ## M10 — Scheduler/supervisor/operations
 
-- [ ] `M10.1` Priority tiers, bounded concurrency, duplicate job prevention, intervals/missed-run rules.
+- [x] `M10.1` Priority tiers, bounded concurrency, duplicate job prevention, intervals/missed-run rules. — DONE
 - [ ] `M10.2` Resource telemetry for API/workers/DB/model/MT5/data/queue.
 - [ ] `M10.3` Graceful shutdown/checkpoint, restart checks and resume guard.
 - [ ] `M10.4` Alerts, operator actions and audit traces.
