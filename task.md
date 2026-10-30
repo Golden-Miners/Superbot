@@ -113,7 +113,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 - [x] `M8.3` Append-only audit and correction linkage. — DONE
 - [x] `M8.4` Experiment registry/data-code-strategy-parameter-cost-config refs. — DONE
 - [x] `M8.5` Checkpoint/crash restart reconciliation for jobs/signals/positions. — DONE
-- [ ] `M8.6` Local + encrypted cloud backup; decide provider/key management with ADR; exclude secrets.
+- [x] `M8.6` Local + encrypted cloud backup; decide provider/key management with ADR; exclude secrets. — DONE
 - [ ] `M8.7` 30-day retention, integrity checks, monthly restore test and migration package.
 
 **Acceptance:** recovery and restore tested; audit integrity failure blocks promotion; no silent evidence deletion; secrets excluded.
