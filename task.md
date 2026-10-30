@@ -127,7 +127,7 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 - [x] `M9.4` Analyst, strategy proposer, reviewer and diagnostic/improvement roles. — DONE
 - [x] `M9.5` Timeout/retry/fallback/skip/conflict and resource-routing tests. — DONE
 - [x] `M9.6` News/sentiment only after core technical pipeline is reliable; permitted free sources. — DONE
-- [ ] `M9.7` Prompt injection, untrusted text and malformed output tests.
+- [x] `M9.7` Prompt injection, untrusted text and malformed output tests. — DONE
 
 **Acceptance:** no hosted inference; no suitable model means dependent work marked incomplete; no AI writes official state.
 
