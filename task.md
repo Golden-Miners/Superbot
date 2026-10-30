@@ -123,9 +123,8 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 
 - [x] `M9.1` Benchmark Ollama vs llama.cpp on laptop/desktop using task fixtures. — DONE
 - [x] `M9.2` Qualify task/model routes on quality, schema, repeatability, latency, memory. — DONE
-- [ ] `M9.3` Implement agent contracts/permissions/proposal store/deterministic orchestration.
 - [x] `M9.3` Implement agent contracts/permissions/proposal store/deterministic orchestration. — DONE
-- [ ] `M9.4` Analyst, strategy proposer, reviewer and diagnostic/improvement roles.
+- [x] `M9.4` Analyst, strategy proposer, reviewer and diagnostic/improvement roles. — DONE
 - [ ] `M9.5` Timeout/retry/fallback/skip/conflict and resource-routing tests.
 - [ ] `M9.6` News/sentiment only after core technical pipeline is reliable; permitted free sources.
 - [ ] `M9.7` Prompt injection, untrusted text and malformed output tests.

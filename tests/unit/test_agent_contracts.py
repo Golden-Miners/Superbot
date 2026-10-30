@@ -54,7 +54,7 @@ def test_agent_registry_creates():
 
 def test_register_agent():
     """register_agent adds an agent to the registry."""
-    service = AgentRegistry()
+    registry = AgentRegistry()
     contract = AgentContract(
         agent_id="agent_1",
         name="Test Agent",
@@ -62,8 +62,8 @@ def test_register_agent():
         max_concurrent_tasks=3,
         max_cost_per_task=Decimal("0.05"),
     )
-    service.register_agent(contract)
-    assert service.get_agent("agent_1") is not None
+    registry.register_agent(contract)
+    assert registry.get_agent("agent_1") is not None
 
 
 def test_get_unknown_agent():

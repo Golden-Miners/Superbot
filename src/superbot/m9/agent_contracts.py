@@ -124,9 +124,10 @@ def reject_proposal(
 def register_agent(
     registry: AgentRegistry,
     contract: AgentContract,
-) -> None:
+) -> AgentRegistry:
     """Register an agent (convenience function)."""
     registry.register_agent(contract)
+    return registry
 
 
 def register_proposal(
