@@ -13,8 +13,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from superbot.m10.scheduler import PriorityTier, Scheduler
 from superbot.m11.api import JobStatus, create_app
 from superbot.m11.auth import Role, SessionStore
+from superbot.m11.integration import DashboardService
 
 
 def _make_client(token: str | None = None) -> tuple[TestClient, SessionStore]:
@@ -326,7 +328,12 @@ def test_cancel_with_confirmation_marks_cancel_requested_not_canceled():
     """Canceling a checkpointed job with confirmation marks it
     CANCEL_REQUESTED (cooperative), not immediately CANCELED."""
     store = SessionStore()
-    client = _make_client(store, _owner_token(store))
+    scheduler = Scheduler(max_concurrent=5)
+    scheduler.submit_job("job-1", PriorityTier.HIGH, {"symbol": "XAUUSD", "timeframe": "M5", "strategy_version": "trend_following.v3"})
+    service = DashboardService(job_scheduler=scheduler)
+    app = create_app(session_store=store, dashboard_service=service)
+    client = TestClient(app)
+    client.headers["Authorization"] = f"Bearer {_owner_token(store)}"
     response = client.post("/jobs/job-1/cancel", json={"confirm_destructive": True})
     assert response.status_code == 200
     data = response.json()
@@ -336,7 +343,12 @@ def test_cancel_with_confirmation_marks_cancel_requested_not_canceled():
 def test_cancel_without_confirmation_on_uncheckpointed_returns_400():
     """Canceling an uncheckpointed job without confirmation returns 400."""
     store = SessionStore()
-    client = _make_client(store, _owner_token(store))
+    scheduler = Scheduler(max_concurrent=5)
+    scheduler.submit_job("job-1", PriorityTier.HIGH, {"symbol": "XAUUSD", "timeframe": "M5", "strategy_version": "trend_following.v3"})
+    service = DashboardService(job_scheduler=scheduler)
+    app = create_app(session_store=store, dashboard_service=service)
+    client = TestClient(app)
+    client.headers["Authorization"] = f"Bearer {_owner_token(store)}"
     response = client.post("/jobs/job-1/cancel", json={"confirm_destructive": False})
     assert response.status_code == 400
     data = response.json()
@@ -347,7 +359,12 @@ def test_cancel_without_confirmation_on_uncheckpointed_returns_400():
 def test_job_list_shows_cancel_requested_status():
     """Jobs list reflects CANCEL_REQUESTED status after cancel confirmation."""
     store = SessionStore()
-    client = _make_client(store, _owner_token(store))
+    scheduler = Scheduler(max_concurrent=5)
+    scheduler.submit_job("job-1", PriorityTier.HIGH, {"symbol": "XAUUSD", "timeframe": "M5", "strategy_version": "trend_following.v3"})
+    service = DashboardService(job_scheduler=scheduler)
+    app = create_app(session_store=store, dashboard_service=service)
+    client = TestClient(app)
+    client.headers["Authorization"] = f"Bearer {_owner_token(store)}"
     client.post("/jobs/job-1/cancel", json={"confirm_destructive": True})
     response = client.get("/jobs")
     assert response.status_code == 200
