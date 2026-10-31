@@ -117,9 +117,11 @@ def render_data_explorer(ui: Any | None = None) -> None:
 
 def render_research_queue(ui: Any | None = None) -> None:
     """Research queue: job status, dataset/symbol/timeframe, versions, priority,
-    resource use, progress, checkpoint, start/duration, pause/resume/cancel."""
+    resource use, progress, checkpoint, start/duration, pause/resume/cancel.
+    All job data is synthetic/internal simulation — never live broker data."""
     u = _get_ui(ui)
     u.title("Research Queue")
+    u.write(source_label("synthetic_fixture"))
     for job in STATE.jobs:
         u.write(
             f"{job['job_id']} | {job['status']} | {job['symbol']} {job['timeframe']} | "
@@ -184,9 +186,11 @@ def render_portfolio_risk(ui: Any | None = None) -> None:
 def render_audit_library(ui: Any | None = None) -> None:
     """Audit / experiment library: search run ID, strategy/version,
     symbol/timeframe, date, data hash, outcome, gate, failure class, commit.
-    Append-only events, evidence refs, correction linkage, version refs."""
+    Append-only events, evidence refs, correction linkage, version refs.
+    All audit data is synthetic/internal simulation — never live broker data."""
     u = _get_ui(ui)
     u.title("Audit / Experiment Library")
+    u.write(source_label("synthetic_fixture"))
     for ev in STATE.audit_events:
         u.write(
             f"{ev['event_id']} | run {ev['run_id']} | {ev['strategy_version']} | "
