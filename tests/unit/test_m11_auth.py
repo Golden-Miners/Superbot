@@ -11,7 +11,11 @@ responses; unauthenticated access returns 401.
 
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
+
+from superbot.m11.api import create_app
 from superbot.m11.auth import (
+    VPN_DOC_PATH,
     Role,
     Session,
     SessionStore,
@@ -185,3 +189,43 @@ def test_validate_bind_host_rejects_public():
         except ValueError:
             continue
         raise AssertionError(f"{host} should raise ValueError")
+
+
+# --- Private VPN documentation (Phase 4.6) --------------------------------
+
+def test_vpn_documents_localhost_only_binding():
+    """VPN documentation states localhost-only binding requirement."""
+    content = VPN_DOC_PATH.read_text(encoding="utf-8")
+    assert "127.0.0.1" in content or "localhost" in content
+    assert "0.0.0.0" in content
+    assert "public" in content.lower()
+
+
+def test_vpn_documents_private_vpn_requirement():
+    """VPN documentation states remote access only via approved private VPN."""
+    content = VPN_DOC_PATH.read_text(encoding="utf-8")
+    assert "vpn" in content.lower()
+    assert "private" in content.lower()
+    assert "remote access" in content.lower()
+
+
+def test_vpn_documents_no_public_exposure():
+    """VPN documentation states no public exposure."""
+    content = VPN_DOC_PATH.read_text(encoding="utf-8")
+    normalized = " ".join(content.lower().split())
+    assert "no public" in normalized
+    assert "public exposure" in normalized or "public network" in normalized
+
+
+def test_api_openapi_servers_localhost_only():
+    """OpenAPI server URLs are localhost-only (no public exposure)."""
+    client = TestClient(create_app())
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    servers = response.json().get("servers", [])
+    assert len(servers) >= 1
+    for server in servers:
+        url = server.get("url", "")
+        assert "127.0.0.1" in url or "localhost" in url
+        assert "0.0.0.0" not in url
+        assert "public" not in url.lower()
