@@ -18,6 +18,7 @@ class HealthStatus(str, Enum):
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     BLOCKED = "blocked"
+    NOT_PROBED = "not_probed"
 
 
 CheckCallable = Callable[[], "HealthCheckResult"]
@@ -58,9 +59,11 @@ class HealthRegistry:
     def overall(self) -> HealthStatus:
         statuses = [result.status for result in self.run_all().values()]
         if not statuses:
-            return HealthStatus.HEALTHY
+            return HealthStatus.NOT_PROBED
         if HealthStatus.BLOCKED in statuses:
             return HealthStatus.BLOCKED
         if HealthStatus.DEGRADED in statuses:
             return HealthStatus.DEGRADED
-        return HealthStatus.HEALTHY
+        if HealthStatus.HEALTHY in statuses:
+            return HealthStatus.HEALTHY
+        return HealthStatus.NOT_PROBED

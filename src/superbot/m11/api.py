@@ -1,4 +1,4 @@
-"""M11.2 — FastAPI backend-driven state for the dashboard surfaces.
+"""M11.2 + Phase 2 — FastAPI backend-driven state for the dashboard surfaces.
 
 Serves overview/health, data explorer labels, research queue jobs,
 strategy/signal workbench, validation/experiment gate states,
@@ -6,8 +6,10 @@ portfolio/risk/internal simulation, audit/experiment library and
 settings/profiles.
 
 All state is deterministic and explicitly labeled synthetic / internal
-simulation. No live orders, no public binding, backend enforces
-authorization for sensitive settings changes.
+simulation. No live orders, no public binding. Every protected route
+requires a server-issued session token (Authorization: Bearer <token>);
+client-supplied role headers are rejected. Authorization is enforced on
+the server for every protected route.
 """
 
 from __future__ import annotations
@@ -20,6 +22,9 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
+from superbot.m10.scheduler import Job
+from superbot.m11.auth import Session, SessionStore
+from superbot.m11.integration import DashboardService
 from superbot.supervisor.health import HealthStatus
 
 
@@ -40,6 +45,7 @@ class JobStatus(str, Enum):
     FAILED = "failed"
     BLOCKED = "blocked"
     DEFERRED = "deferred"
+    CANCEL_REQUESTED = "cancel_requested"
     CANCELED = "canceled"
 
 
@@ -109,19 +115,23 @@ class DashboardState:
     # -- seeding -----------------------------------------------------------
 
     def _seed_health(self) -> None:
+        # Health components start as NOT_PROBED — no actual probes have been
+        # run yet. Claiming HEALTHY without probing would be misleading.
+        # Real probes should be registered via HealthRegistry and their
+        # results reflected here before reporting HEALTHY/DEGRADED/BLOCKED.
         self.health_components = {
-            "api": HealthComponent("api", HealthStatus.HEALTHY, "API responding"),
+            "api": HealthComponent("api", HealthStatus.NOT_PROBED, "not probed"),
             "postgresql": HealthComponent(
-                "postgresql", HealthStatus.HEALTHY, "PostgreSQL reachable"
+                "postgresql", HealthStatus.NOT_PROBED, "not probed"
             ),
             "worker_supervisor": HealthComponent(
-                "worker_supervisor", HealthStatus.HEALTHY, "Supervisor active"
+                "worker_supervisor", HealthStatus.NOT_PROBED, "not probed"
             ),
             "model_runtime": HealthComponent(
-                "model_runtime", HealthStatus.HEALTHY, "Model runtime loaded"
+                "model_runtime", HealthStatus.NOT_PROBED, "not probed"
             ),
             "mt5_readonly": HealthComponent(
-                "mt5_readonly", HealthStatus.HEALTHY, "MT5 read-only connected"
+                "mt5_readonly", HealthStatus.NOT_PROBED, "not probed"
             ),
         }
 
@@ -368,6 +378,47 @@ STATE = DashboardState()
 
 
 # ---------------------------------------------------------------------------
+# Authentication / authorization
+# ---------------------------------------------------------------------------
+
+
+def _get_session(request: Request, store: SessionStore) -> Session | None:
+    """Extract and validate a bearer token from the Authorization header.
+
+    Returns the Session if a valid, active, unexpired token is presented,
+    else None. Client-supplied role headers (e.g. X-Operator-Role) are
+    never used for authorization.
+    """
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return None
+    token = auth[len("Bearer ") :].strip()
+    if not token:
+        return None
+    return store.validate_token(token)
+
+
+def _authorize(request: Request, store: SessionStore, action: str) -> Session:
+    """Authenticate and authorize for an action.
+
+    Returns the validated Session, or raises HTTP 401 (no/invalid token)
+    or HTTP 403 (insufficient role for the action).
+    """
+    session = _get_session(request, store)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="authentication required",
+        )
+    if not store.can(session.role, action):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="insufficient permissions",
+        )
+    return session
+
+
+# ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
 
@@ -381,11 +432,12 @@ def _overall_status(components: dict[str, HealthComponent]) -> str:
     return "healthy"
 
 
-def _operator_role(request: Request) -> str:
-    return request.headers.get("X-Operator-Role", "viewer")
-
-
-def create_app() -> FastAPI:
+def create_app(
+    session_store: SessionStore | None = None,
+    dashboard_service: DashboardService | None = None,
+) -> FastAPI:
+    store = session_store or SessionStore()
+    dashboard = dashboard_service or DashboardService()
     app = FastAPI(
         title="Superbot Dashboard API",
         version="0.1.0",
@@ -395,28 +447,17 @@ def create_app() -> FastAPI:
     # --- Overview / health ------------------------------------------------
 
     @app.get("/health")
-    def health() -> dict[str, Any]:
-        components = {
-            name: {
-                "status": comp.status.value,
-                "message": comp.message,
-            }
-            for name, comp in STATE.health_components.items()
-        }
-        return {
-            "ok": True,
-            "overall": _overall_status(STATE.health_components),
-            "components": components,
-            "last_update_utc": _utc_now(),
-            "data_freshness": "current",
-            "backup_state": "ok",
-            "label": "internal_simulation",
-        }
+    def health(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_health")
+        return dashboard.get_health()
 
     # --- Data explorer ----------------------------------------------------
 
     @app.get("/data/explorer/{symbol}/{timeframe}")
-    def data_explorer(symbol: str, timeframe: str) -> dict[str, Any]:
+    def data_explorer(
+        request: Request, symbol: str, timeframe: str
+    ) -> dict[str, Any]:
+        _authorize(request, store, "read_data_explorer")
         return {
             "symbol": symbol,
             "timeframe": timeframe,
@@ -439,184 +480,131 @@ def create_app() -> FastAPI:
     # --- Research queue jobs ----------------------------------------------
 
     @app.get("/jobs")
-    def jobs(check_duplicates: bool = False) -> dict[str, Any]:
-        duplicate_checks: list[dict[str, Any]] = []
-        if check_duplicates:
-            seen: dict[str, str] = {}
-            for job in STATE.jobs:
-                key = f"{job['symbol']}:{job['timeframe']}:{job['dataset']}"
-                if key in seen:
-                    duplicate_checks.append(
-                        {
-                            "job_id": job["job_id"],
-                            "duplicate_of": seen[key],
-                            "reason": "duplicate overlap — same dataset/symbol/timeframe",
-                        }
-                    )
-                else:
-                    seen[key] = job["job_id"]
-        return {
-            "jobs": STATE.jobs,
-            "duplicate_checks": duplicate_checks,
-            "label": "internal_simulation",
-        }
+    def jobs(request: Request, check_duplicates: bool = False) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
+        return dashboard.get_jobs()
 
     @app.post("/jobs/{job_id}/cancel")
-    def cancel_job(job_id: str, body: dict[str, Any]) -> dict[str, Any]:
-        job = next((j for j in STATE.jobs if j["job_id"] == job_id), None)
+    def cancel_job(
+        request: Request, job_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        _authorize(request, store, "cancel_job")
+        job = dashboard.job_scheduler._jobs.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
-        if not job.get("checkpointed", False) and not body.get(
+        if not job.payload.get("checkpointed", False) and not body.get(
             "confirm_destructive", False
         ):
             return JSONResponse(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    content={
-                        "blocked": True,
-                        "job_id": job_id,
-                        "reason": "uncheckpointed work could be lost; confirm destructive cancellation",
-                    },
-                )
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "blocked": True,
+                    "job_id": job_id,
+                    "reason": "uncheckpointed work could be lost; confirm destructive cancellation",
+                },
+            )
+        # Cooperative cancellation: mark the job for cancellation rather than
+        # completing it immediately. No worker management exists, so the job
+        # transitions to CANCEL_REQUESTED; a worker would need to cooperate
+        # by checking the cancellation flag and completing the cancel.
+        job = Job(
+            job.job_id,
+            job.priority,
+            job.payload,
+            job.scheduled_at,
+            JobStatus.CANCEL_REQUESTED,
+        )
+        dashboard.job_scheduler._jobs[job_id] = job
         return {
             "job_id": job_id,
-            "status": JobStatus.CANCELED,
-            "message": "canceled",
+            "status": JobStatus.CANCEL_REQUESTED,
+            "message": "cancellation requested; cooperative cancel pending",
         }
 
     # --- Strategy / signal workbench --------------------------------------
 
     @app.get("/strategies")
-    def strategies() -> dict[str, Any]:
-        return {
-            "strategies": STATE.strategies,
-            "label": "internal_simulation",
-        }
+    def strategies(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
+        return dashboard.get_strategies()
 
     @app.get("/strategies/{strategy_id}")
-    def strategy_detail(strategy_id: str) -> dict[str, Any]:
+    def strategy_detail(
+        request: Request, strategy_id: str
+    ) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
+        strategies = dashboard.get_strategies()
         strategy = next(
-            (s for s in STATE.strategies if s["strategy_id"] == strategy_id), None
+            (s for s in strategies["strategies"] if s["strategy_id"] == strategy_id),
+            None,
         )
         if strategy is None:
             raise HTTPException(status_code=404, detail="strategy not found")
-        return {
-            **strategy,
-            "label": "internal_simulation",
-        }
+        return strategy
 
     # --- Validation / experiments -----------------------------------------
 
     @app.get("/experiments")
-    def experiments(outcome: str | None = None) -> dict[str, Any]:
-        items = STATE.experiments
-        if outcome:
-            items = [e for e in items if e["outcome"] == outcome]
-        return {
-            "experiments": items,
-            "label": "internal_simulation",
-        }
+    def experiments(
+        request: Request, outcome: str | None = None
+    ) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
+        return dashboard.get_experiments()
 
     # --- Portfolio / risk / internal simulation ---------------------------
 
     @app.get("/risk")
-    def risk() -> dict[str, Any]:
-        return {
-            "positions": [
-                {
-                    "symbol": "XAUUSD",
-                    "side": "long",
-                    "entry_price": 2650.00,
-                    "current_price": 2655.00,
-                    "size": 0.1,
-                    "pnl": 5.00,
-                    "stop": 2640.00,
-                }
-            ],
-            "exposure": {"gross": 265.0, "net": 265.0},
-            "pnl": {"realized": 120.00, "unrealized": 5.00},
-            "daily_loss_usage_pct": 0.8,
-            "drawdown_peak_pct": 1.2,
-            "halt_state": "running",
-            "risk_state": "green",
-            "blocked": False,
-            "label": "internal_simulation",
-            "no_live_orders": True,
-        }
+    def risk(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
+        return dashboard.get_risk()
 
     @app.get("/risk/strategy/{strategy_id}")
-    def risk_strategy(strategy_id: str) -> dict[str, Any]:
-        if strategy_id == "missing-spec-strategy":
-            return {
-                "strategy_id": strategy_id,
-                "blocked": True,
-                "risk_state": "blocked",
-                "reason": "missing or stale symbol spec — unverifiable sizing",
-            }
+    def risk_strategy(
+        request: Request, strategy_id: str
+    ) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
+        risk_data = dashboard.get_risk()
+        for s in risk_data.get("strategies", []):
+            if s["strategy_id"] == strategy_id:
+                return {
+                    "strategy_id": strategy_id,
+                    "blocked": False,
+                    "risk_state": "green",
+                    **s,
+                }
         return {
             "strategy_id": strategy_id,
-            "blocked": False,
-            "risk_state": "green",
+            "blocked": True,
+            "risk_state": "blocked",
+            "reason": "missing or stale symbol spec — unverifiable sizing",
         }
 
     # --- Audit / experiment library ---------------------------------------
 
     @app.get("/audit/events")
-    def audit_events() -> dict[str, Any]:
-        return {
-            "events": STATE.audit_events,
-            "label": "internal_simulation",
-        }
+    def audit_events(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_audit")
+        return dashboard.get_audit_events()
 
     @app.get("/audit/chain/verify")
-    def audit_chain_verify() -> dict[str, Any]:
-        return {"chain_intact": True, "event_count": len(STATE.audit_events)}
+    def audit_chain_verify(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_audit")
+        return dashboard.get_audit_events()
 
     # --- Settings / profiles ----------------------------------------------
 
     @app.get("/settings/profiles")
-    def settings_profiles(include_secrets: bool = False) -> dict[str, Any]:
-        profiles = {}
-        for name, profile in STATE.profiles.items():
-            entry = dict(profile)
-            if not include_secrets:
-                entry.pop("secret", None)
-            entry["secret_redacted"] = True
-            profiles[name] = entry
-        return {
-            "profiles": profiles,
-            "live_orders_enabled": False,
-            "label": "internal_simulation",
-        }
+    def settings_profiles(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
+        return dashboard.get_settings_profiles()
 
     @app.post("/settings/profiles/{profile_name}")
     def update_profile(
-        profile_name: str, body: dict[str, Any], request: Request
+        request: Request,
+        profile_name: str,
+        body: dict[str, Any],
     ) -> dict[str, Any]:
-        if profile_name not in STATE.profiles:
-            raise HTTPException(status_code=404, detail="profile not found")
-        if _operator_role(request) != "owner":
-            return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={
-                    "allowed": False,
-                    "profile": profile_name,
-                    "reason": "only authorized owner may change sensitive settings",
-                },
-            )
-        STATE.profiles[profile_name]["value"] = body.get("value", "unchanged")
-        STATE.profiles[profile_name]["version"] = str(
-            int(STATE.profiles[profile_name]["version"]) + 1
-        )
-        STATE.profiles[profile_name]["actor"] = "owner"
-        STATE.profiles[profile_name]["reason"] = body.get("reason", "operator update")
-        STATE.profiles[profile_name]["timestamp_utc"] = _utc_now()
-        STATE.profiles[profile_name]["last_known_good"] = STATE.profiles[
-            profile_name
-        ]["version"]
-        return {
-            "allowed": True,
-            "profile": profile_name,
-            "version": STATE.profiles[profile_name]["version"],
-        }
+        _authorize(request, store, "change_settings")
+        return dashboard.update_profile(profile_name, body)
 
     return app
