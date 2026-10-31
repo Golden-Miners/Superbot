@@ -1,24 +1,33 @@
-"""RED tests for M8.6 — Local + encrypted cloud backup; disclose missing costs.
+"""RED tests for Phase 3 — Backup security.
 
-Tests define:
-- BackupService: encrypts data locally before "upload"
-- BackupProvider: abstract provider interface (local + optional cloud)
-- Encryption: AES-256-GCM with key derived from passphrase
-- Key management: key stored separately from backups; ADR documents provider/key choice
-- Secret exclusion: secrets never included in backups
-- Backup integrity: SHA-256 checksums for each backup
-- Restore: decrypt and verify checksum
-- Stdlib-only, no import-time network/cloud activity
+Covers: authenticated encryption (Fernet), secure random key generation,
+tampered backup rejection, wrong-key rejection, recovery, process restart,
+no broker credentials in backup payloads, cloud backup unavailable.
+
+Acceptance: custom SHA-256 stream cipher disabled for real data;
+maintained authenticated-encryption implementation used;
+secure random key generation; ADR defines key-management requirements;
+durable local backup/restore with integrity verification;
+cloud backup explicitly unavailable;
+tampered/wrong-key rejection; recovery and restart tested;
+no broker credentials in backup payloads.
 """
 
 from __future__ import annotations
 
+import base64
+import json
+import os
+import tempfile
+
 import pytest
+from cryptography.fernet import Fernet, InvalidToken
 
 from superbot.persistence.backup import (
     BackupProvider,
     BackupResult,
     BackupService,
+    EncryptionUnavailableError,
     KeyManager,
     RestoreResult,
     backup,
@@ -30,67 +39,196 @@ from superbot.persistence.backup import (
 )
 
 
-def test_backup_service_creates():
-    """BackupService can be created with provider and key manager."""
-    service = BackupService(
+def _make_service() -> BackupService:
+    """Create a BackupService with temp backup and key dirs."""
+    backup_dir = tempfile.mkdtemp(prefix="backup_test_")
+    key_dir = tempfile.mkdtemp(prefix="backup_keys_")
+    return BackupService(
+        backup_dir=backup_dir,
         provider=BackupProvider.LOCAL,
-        backup_dir="/tmp/backup_test",
-        key_manager=None,
+        key_manager=KeyManager(key_dir),
     )
-    assert service is not None
 
 
-def test_backup_service_default_provider():
-    """BackupService defaults to LOCAL provider."""
-    service = BackupService(backup_dir="/tmp/backup_test")
-    assert service.provider == BackupProvider.LOCAL
+# --- Custom cipher disabled ----------------------------------------------
 
 
-def test_backup_and_restore():
-    """backup() then restore() returns original data."""
-    service = BackupService(backup_dir="/tmp/backup_test")
-    service.register_provider(BackupProvider.LOCAL, "/tmp/backup_test_store")
-    result = backup(service, "exp_1", {"data": "sensitive"})
+def test_encrypt_payload_raises_encryption_unavailable():
+    """Custom SHA-256 stream cipher is disabled; encrypt_payload raises."""
+    key = Fernet.generate_key()
+    with pytest.raises(EncryptionUnavailableError):
+        encrypt_payload(b"secret data", key)
+
+
+def test_decrypt_payload_raises_encryption_unavailable():
+    """Custom SHA-256 stream cipher is disabled; decrypt_payload raises."""
+    key = Fernet.generate_key()
+    with pytest.raises(EncryptionUnavailableError):
+        decrypt_payload(b"fake-token-data", key)
+
+
+# --- Secure random key generation ----------------------------------------
+
+def test_key_manager_generate_key_is_fernet_key():
+    """KeyManager.generate_key() returns a valid Fernet key (secure random)."""
+    key_dir = tempfile.mkdtemp(prefix="keys_")
+    km = KeyManager(key_dir)
+    key = km.generate_key("test_key")
+    # Fernet keys are URL-safe base64-encoded 32-byte keys; Fernet() validates.
+    Fernet(key)  # raises if invalid
+    assert len(key) == 44  # base64 of 32 bytes with padding
+
+
+def test_key_manager_generate_keys_are_unique():
+    """Each generate_key call produces a different key."""
+    key_dir = tempfile.mkdtemp(prefix="keys_")
+    km = KeyManager(key_dir)
+    keys = [km.generate_key(f"key_{i}") for i in range(10)]
+    assert len(set(keys)) == 10
+
+
+def test_key_manager_generate_and_load():
+    """KeyManager generates and loads a key."""
+    key_dir = tempfile.mkdtemp(prefix="keys_")
+    km = KeyManager(key_dir)
+    key = km.generate_key("test_key")
+    loaded = km.load_key("test_key")
+    assert loaded == key
+
+
+def test_key_manager_missing_key():
+    """KeyManager.load_key() raises KeyError for missing key."""
+    key_dir = tempfile.mkdtemp(prefix="keys_")
+    km = KeyManager(key_dir)
+    with pytest.raises(KeyError):
+        km.load_key("nonexistent")
+
+
+# --- Backup / restore with authenticated encryption -----------------------
+
+def test_backup_and_restore_returns_original_data():
+    """backup() then restore() returns original data via Fernet."""
+    service = _make_service()
+    result = backup(service, "exp_1", {"data": "sensitive", "value": 42})
+    assert isinstance(result, BackupResult)
     assert result.backup_id is not None
     assert result.checksum is not None
     restored = service.restore(result.backup_id)
-    assert restored.restored_data == {"data": "sensitive"}
+    assert restored.restored_data == {"data": "sensitive", "value": 42}
+    assert restored.checksum_verified is True
 
 
-def test_encrypt_payload():
-    """encrypt_payload() returns encrypted bytes."""
-    key = b"0123456789abcdef0123456789abcdef"
-    encrypted = encrypt_payload(b"secret data", key)
-    assert isinstance(encrypted, bytes)
-    assert encrypted != b"secret data"
+def test_backup_excludes_broker_credentials():
+    """backup() excludes broker credentials from stored payload."""
+    service = _make_service()
+    result = backup(
+        service,
+        "exp_secret",
+        {"data": "visible", "api_key": "secret123", "password": "hunter2", "token": "tok123"},
+    )
+    restored = service.restore(result.backup_id)
+    assert restored.restored_data["data"] == "visible"
+    assert "api_key" not in restored.restored_data
+    assert "password" not in restored.restored_data
+    assert "token" not in restored.restored_data
 
 
-def test_decrypt_payload():
-    """decrypt_payload() decrypts encrypted bytes back to original."""
-    key = b"0123456789abcdef0123456789abcdef"
-    encrypted = encrypt_payload(b"secret data", key)
-    decrypted = decrypt_payload(encrypted, key)
-    assert decrypted == b"secret data"
+def test_tampered_backup_is_rejected():
+    """Tampering with encrypted bytes causes restore to raise InvalidToken."""
+    service = _make_service()
+    result = backup(service, "exp_tamper", {"data": "sensitive"})
+    backup_path = os.path.join(service.backup_dir, f"{result.backup_id}.json")
+    with open(backup_path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    # Decode, flip a byte in the raw encrypted bytes, re-encode.
+    encrypted = bytearray(base64.b64decode(data["encrypted"]))
+    encrypted[0] ^= 0xFF
+    data["encrypted"] = base64.b64encode(bytes(encrypted)).decode("ascii")
+    with open(backup_path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh)
+    with pytest.raises(InvalidToken):
+        service.restore(result.backup_id)
 
 
-def test_exclude_secrets():
-    """exclude_secrets() removes secret keys from payload."""
+def test_wrong_key_is_rejected():
+    """Decrypting with a different key raises InvalidToken."""
+    service = _make_service()
+    result = backup(service, "exp_wrong", {"data": "sensitive"})
+    # Overwrite the key file with a different key.
+    wrong_key = Fernet.generate_key()
+    key_path = os.path.join(service.key_manager.key_dir, "backup_exp_wrong.key")
+    with open(key_path, "wb") as fh:
+        fh.write(wrong_key)
+    with pytest.raises(InvalidToken):
+        service.restore(result.backup_id)
+
+
+def test_process_restart_can_restore():
+    """A new BackupService with the same key dir can restore existing backups."""
+    backup_dir = tempfile.mkdtemp(prefix="backup_restart_")
+    key_dir = tempfile.mkdtemp(prefix="keys_restart_")
+    service1 = BackupService(
+        backup_dir=backup_dir,
+        provider=BackupProvider.LOCAL,
+        key_manager=KeyManager(key_dir),
+    )
+    result = backup(service1, "exp_restart", {"data": "persist"})
+
+    # New service instance, same key dir (simulates process restart).
+    service2 = BackupService(
+        backup_dir=backup_dir,
+        provider=BackupProvider.LOCAL,
+        key_manager=KeyManager(key_dir),
+    )
+    restored = service2.restore(result.backup_id)
+    assert restored.restored_data == {"data": "persist"}
+    assert restored.checksum_verified is True
+
+
+def test_checksum_mismatch_is_detected():
+    """verify_integrity detects mismatched checksums."""
+    payload = b"test data"
+    h = hash_payload(payload)
+    assert verify_integrity(payload, h) is True
+    assert verify_integrity(b"wrong data", h) is False
+
+
+# --- Cloud backup unavailable --------------------------------------------
+
+def test_cloud_provider_unavailable():
+    """Cloud backup is explicitly unavailable."""
+    key_dir = tempfile.mkdtemp(prefix="keys_cloud_")
+    service = BackupService(
+        backup_dir=tempfile.mkdtemp(prefix="backup_cloud_"),
+        provider=BackupProvider.CLOUD,
+        key_manager=KeyManager(key_dir),
+    )
+    with pytest.raises(NotImplementedError):
+        backup(service, "exp_cloud", {"data": "sensitive"})
+
+
+# --- Secret exclusion ----------------------------------------------------
+
+def test_exclude_secrets_removes_broker_credentials():
+    """exclude_secrets() removes broker credential keys."""
     payload = {
         "data": "visible",
-        "api_key": "secret123",
+        "api_key": "sk-live-1234567890",
         "password": "hunter2",
-        "token": "tok123",
+        "token": "abc123",
+        "secret": "mysecret",
         "normal": "value",
     }
     result = exclude_secrets(payload)
     assert result["data"] == "visible"
     assert result["normal"] == "value"
-    assert "api_key" not in result
-    assert "password" not in result
-    assert "token" not in result
+    for k in ("api_key", "password", "token", "secret"):
+        assert k not in result
 
 
-def test_hash_payload():
+# --- Deterministic checksum ----------------------------------------------
+
+def test_hash_payload_is_deterministic():
     """hash_payload() returns SHA-256 hex digest."""
     h1 = hash_payload(b"data")
     h2 = hash_payload(b"data")
@@ -98,62 +236,6 @@ def test_hash_payload():
     assert h1 == h2
     assert h1 != h3
     assert len(h1) == 64
-
-
-def test_verify_integrity():
-    """verify_integrity() returns True when checksum matches."""
-    payload = b"test data"
-    h = hash_payload(payload)
-    assert verify_integrity(payload, h) is True
-    assert verify_integrity(b"wrong", h) is False
-
-
-def test_key_manager_creates():
-    """KeyManager can be created."""
-    km = KeyManager(key_dir="/tmp/keymgr_test")
-    assert km is not None
-
-
-def test_key_manager_generate_and_load():
-    """KeyManager generates and loads a key."""
-    km = KeyManager(key_dir="/tmp/keymgr_test")
-    key = km.generate_key("test_key")
-    assert len(key) == 32
-    loaded = km.load_key("test_key")
-    assert loaded == key
-
-
-def test_key_manager_missing_key():
-    """KeyManager.load_key() raises KeyError for missing key."""
-    km = KeyManager(key_dir="/tmp/keymgr_test")
-    with pytest.raises(KeyError):
-        km.load_key("nonexistent")
-
-
-def test_backup_excludes_secrets():
-    """backup() excludes secrets from stored payload."""
-    service = BackupService(backup_dir="/tmp/backup_test")
-    service.register_provider(BackupProvider.LOCAL, "/tmp/backup_test_store2")
-    result = backup(
-        service,
-        "exp_secret",
-        {"data": "visible", "api_key": "secret123", "password": "hunter2"},
-    )
-    restored = service.restore(result.backup_id)
-    assert restored.restored_data["data"] == "visible"
-    assert "api_key" not in restored.restored_data
-    assert "password" not in restored.restored_data
-
-
-def test_backup_deterministic():
-    """Same inputs yield identical backup checksum."""
-    s1 = BackupService(backup_dir="/tmp/backup_test")
-    s2 = BackupService(backup_dir="/tmp/backup_test")
-    s1.register_provider(BackupProvider.LOCAL, "/tmp/backup_test_store3")
-    s2.register_provider(BackupProvider.LOCAL, "/tmp/backup_test_store4")
-    r1 = backup(s1, "exp_det", {"data": "same"})
-    r2 = backup(s2, "exp_det", {"data": "same"})
-    assert r1.checksum == r2.checksum
 
 
 def test_backup_result_creates():
