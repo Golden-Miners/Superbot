@@ -298,5 +298,5 @@ class ParameterRobustnessEvaluator:
         try:
             d = Decimal(str(val))
             return d.is_finite()
-        except decimal.InvalidOperation, TypeError, ValueError:
+        except (decimal.InvalidOperation, TypeError, ValueError):
             return False

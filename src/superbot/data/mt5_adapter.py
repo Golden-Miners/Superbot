@@ -54,7 +54,7 @@ def _to_decimal(value) -> Decimal | None:
         return None
     try:
         return Decimal(str(value))
-    except InvalidOperation, ValueError, TypeError:
+    except (InvalidOperation, ValueError, TypeError):
         return None
 
 
