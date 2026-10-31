@@ -187,7 +187,7 @@ def test_owner_can_change_settings():
     store = SessionStore()
     client = TestClient(create_app(session_store=store))
     client.headers["Authorization"] = f"Bearer {_owner_token(store)}"
-    response = client.post("/settings/profiles/research", json={"value": "tampered"})
+    response = client.post("/settings/profiles/research", json={"value": "disabled"})
     assert response.status_code == 200
     data = response.json()
     assert data["allowed"] is True
@@ -354,3 +354,82 @@ def test_job_list_shows_cancel_requested_status():
     data = response.json()
     job = next(j for j in data["jobs"] if j["job_id"] == "job-1")
     assert job["status"] == JobStatus.CANCEL_REQUESTED
+
+
+# --- Settings validation against declared ranges (Phase 4.4/4.5) -----------
+
+def test_settings_update_valid_value_increments_version_and_last_known_good():
+    """Updating a profile with a valid value (within validated_range)
+    increments version and updates last_known_good."""
+    store = SessionStore()
+    client = _make_client(store, _owner_token(store))
+    # Get current state first
+    before = client.get("/settings/profiles")
+    before_version = before.json()["profiles"]["research"]["version"]
+
+    response = client.post(
+        "/settings/profiles/research",
+        json={"value": "disabled", "reason": "test change"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["allowed"] is True
+    assert data["version"] == str(int(before_version) + 1)
+
+    # Verify last_known_good was updated
+    after = client.get("/settings/profiles")
+    assert after.json()["profiles"]["research"]["last_known_good"] == data["version"]
+
+
+def test_settings_update_invalid_value_rejected_without_changing_last_known_good():
+    """Updating a profile with an invalid value (outside validated_range)
+    returns 400/422 and does NOT change version or last_known_good."""
+    store = SessionStore()
+    client = _make_client(store, _owner_token(store))
+    before = client.get("/settings/profiles")
+    before_version = before.json()["profiles"]["research"]["version"]
+    before_lkg = before.json()["profiles"]["research"]["last_known_good"]
+
+    # "tampered" is not in validated_range ["enabled", "disabled"]
+    response = client.post(
+        "/settings/profiles/research",
+        json={"value": "tampered", "reason": "invalid change"},
+    )
+    assert response.status_code in (400, 422)
+    data = response.json()
+    assert data["allowed"] is False
+
+    # Version and last_known_good unchanged
+    after = client.get("/settings/profiles")
+    assert after.json()["profiles"]["research"]["version"] == before_version
+    assert after.json()["profiles"]["research"]["last_known_good"] == before_lkg
+
+
+def test_settings_update_unknown_profile_returns_404():
+    """Updating a nonexistent profile returns 404."""
+    store = SessionStore()
+    client = _make_client(store, _owner_token(store))
+    response = client.post(
+        "/settings/profiles/nonexistent_profile",
+        json={"value": "enabled"},
+    )
+    assert response.status_code == 404
+
+
+def test_settings_update_without_value_uses_unchanged():
+    """Updating a profile without specifying value keeps current value
+    (no change, but still validates against existing value)."""
+    store = SessionStore()
+    client = _make_client(store, _owner_token(store))
+    before = client.get("/settings/profiles")
+    before_version = before.json()["profiles"]["research"]["version"]
+
+    response = client.post(
+        "/settings/profiles/research",
+        json={"reason": "no value change"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["allowed"] is True
+    # Version still increments for a metadata-only update
+    assert data["version"] == str(int(before_version) + 1)

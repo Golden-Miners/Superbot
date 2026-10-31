@@ -679,20 +679,29 @@ def create_app(session_store: SessionStore | None = None) -> FastAPI:
         _authorize(request, store, "change_settings")
         if profile_name not in STATE.profiles:
             raise HTTPException(status_code=404, detail="profile not found")
-        STATE.profiles[profile_name]["value"] = body.get("value", "unchanged")
-        STATE.profiles[profile_name]["version"] = str(
-            int(STATE.profiles[profile_name]["version"]) + 1
-        )
-        STATE.profiles[profile_name]["actor"] = "owner"
-        STATE.profiles[profile_name]["reason"] = body.get("reason", "operator update")
-        STATE.profiles[profile_name]["timestamp_utc"] = _utc_now()
-        STATE.profiles[profile_name]["last_known_good"] = STATE.profiles[
-            profile_name
-        ]["version"]
+        profile = STATE.profiles[profile_name]
+        new_value = body.get("value")
+        if new_value is not None:
+            validated_range = profile.get("validated_range", [])
+            if validated_range and new_value not in validated_range:
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={
+                        "allowed": False,
+                        "profile": profile_name,
+                        "reason": f"value {new_value!r} not in validated range {validated_range}",
+                    },
+                )
+            profile["value"] = new_value
+        profile["version"] = str(int(profile["version"]) + 1)
+        profile["actor"] = "owner"
+        profile["reason"] = body.get("reason", "operator update")
+        profile["timestamp_utc"] = _utc_now()
+        profile["last_known_good"] = profile["version"]
         return {
             "allowed": True,
             "profile": profile_name,
-            "version": STATE.profiles[profile_name]["version"],
+            "version": profile["version"],
         }
 
     return app
