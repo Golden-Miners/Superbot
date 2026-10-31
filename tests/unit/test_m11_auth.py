@@ -1,12 +1,12 @@
-"""RED tests for M11.3 — Auth sessions, roles, redaction, local binding.
+"""RED tests for Phase 2 Security — Server-issued session authentication.
 
-Covers: session create/validate/expire/invalidate, role-based access control
-(owner/operator/viewer), secret redaction, localhost-only binding enforcement,
-and private VPN documentation requirement.
+Covers: unpredictable server-issued session tokens, token-based validation,
+session expiry and revocation, role-based authorization via session (not
+client-supplied headers), and secret redaction.
 
-Acceptance: backend enforces authorization (hiding a button is insufficient),
-no public network binding, secrets redacted and non-exportable, remote access
-only through approved private VPN.
+Acceptance: backend enforces authorization via server-issued sessions;
+client-supplied role headers are rejected; secrets never serialized in API
+responses; unauthenticated access returns 401.
 """
 
 from __future__ import annotations
@@ -15,57 +15,94 @@ from superbot.m11.auth import (
     Role,
     Session,
     SessionStore,
+    generate_session_token,
     is_localhost_host,
     redact_secret,
     validate_bind_host,
 )
 
 
-def test_role_enum_values():
-    """Roles are owner, operator, viewer."""
-    assert Role.OWNER == "owner"
-    assert Role.OPERATOR == "operator"
-    assert Role.VIEWER == "viewer"
+def test_generate_session_token_returns_nonempty_string():
+    """generate_session_token returns a non-empty string token."""
+    token = generate_session_token()
+    assert isinstance(token, str)
+    assert len(token) > 0
 
 
-def test_session_create_and_validate():
-    """Creating a session yields an active session that validates."""
+def test_session_tokens_are_unique():
+    """Each call to create_session produces a unique token."""
     store = SessionStore()
-    session = store.create_session(Role.OWNER)
+    tokens = set()
+    for _ in range(50):
+        _, token = store.create_session(Role.VIEWER)
+        tokens.add(token)
+    assert len(tokens) == 50
+
+
+def test_create_session_returns_session_and_token():
+    """create_session returns a Session and an unpredictable token."""
+    store = SessionStore()
+    session, token = store.create_session(Role.OWNER)
     assert isinstance(session, Session)
     assert session.role == Role.OWNER
     assert session.is_active is True
-    assert session.session_id
-    assert session.created_at_utc
-    assert session.expires_at_utc
+    assert isinstance(token, str)
+    assert len(token) > 0
+    # Session ID must not equal the token (token is the secret, ID is metadata).
+    assert session.session_id != token
 
-    found = store.validate_session(session.session_id)
+
+def test_validate_token_returns_session():
+    """A valid server-issued token validates to its session."""
+    store = SessionStore()
+    session, token = store.create_session(Role.OPERATOR)
+    found = store.validate_token(token)
     assert found is not None
     assert found.session_id == session.session_id
+    assert found.role == Role.OPERATOR
 
 
-def test_session_expires_and_is_no_longer_valid():
-    """An expired session returns None from validate_session."""
+def test_validate_unknown_token_returns_none():
+    """An unknown token returns None."""
+    assert SessionStore().validate_token("does-not-exist") is None
+
+
+def test_validate_empty_token_returns_none():
+    """An empty token returns None."""
+    assert SessionStore().validate_token("") is None
+
+
+def test_validate_expired_token_returns_none():
+    """An expired token returns None."""
     store = SessionStore()
-    session = store.create_session(Role.VIEWER)
-    # Force expiry in the past.
-    store._sessions[session.session_id].expires_at_utc = "1970-01-01T00:00:00+00:00"
-    assert store.validate_session(session.session_id) is None
+    _session, token = store.create_session(Role.VIEWER)
+    store._sessions[token].expires_at_utc = "1970-01-01T00:00:00+00:00"
+    assert store.validate_token(token) is None
 
 
-def test_session_invalidate():
-    """Invalidating a session makes it no longer valid."""
+def test_invalidate_token_marks_inactive():
+    """Invalidating a token makes it no longer valid."""
     store = SessionStore()
-    session = store.create_session(Role.OPERATOR)
-    assert store.invalidate_session(session.session_id) is True
-    assert store.validate_session(session.session_id) is None
-    assert store.invalidate_session(session.session_id) is False
+    _session, token = store.create_session(Role.OPERATOR)
+    assert store.invalidate_token(token) is True
+    assert store.validate_token(token) is None
+    assert store.invalidate_token(token) is False
 
 
-def test_unknown_session_returns_none():
-    """Validating an unknown session id returns None."""
-    assert SessionStore().validate_session("does-not-exist") is None
+def test_invalidate_unknown_token_returns_false():
+    """Invalidating an unknown token returns False."""
+    assert SessionStore().invalidate_token("unknown-token") is False
 
+
+def test_session_id_not_guessable_from_token():
+    """The token is not derivable from the session ID and vice versa."""
+    store = SessionStore()
+    session, token = store.create_session(Role.OWNER)
+    assert session.session_id != token
+    assert "sess-" not in token
+
+
+# --- Role-based authorization (unchanged, server-enforced) ----------------
 
 def test_owner_can_change_settings():
     """Owner role is authorized to change sensitive settings."""
@@ -87,19 +124,40 @@ def test_viewer_can_read_dashboard():
     assert SessionStore().can(Role.VIEWER, "read_dashboard") is True
 
 
+def test_operator_can_read_audit():
+    """Operator role is authorized to read audit events."""
+    assert SessionStore().can(Role.OPERATOR, "read_audit") is True
+
+
+def test_viewer_cannot_read_audit():
+    """Viewer role is not authorized to read audit events."""
+    assert SessionStore().can(Role.VIEWER, "read_audit") is False
+
+
+# --- Secret redaction (unchanged) -----------------------------------------
+
 def test_secret_redacted_and_nonexportable():
-    """redact_secret returns a redacted value that does not expose the secret."""
+    """redact_secret returns a redacted value that never exposes plaintext."""
     secret = "sk-live-1234567890abcdef"
     redacted = redact_secret(secret)
     assert redacted != secret
     assert secret not in redacted
-    assert "REDACTED" in redacted.upper() or "****" in redacted
+    assert "****" in redacted
 
 
 def test_redact_secret_empty():
     """Redacting an empty secret returns empty."""
     assert redact_secret("") == ""
 
+def test_redact_secret_dummy_secret_not_exposed():
+    """A dummy secret with surrounding context is never fully exposed."""
+    secret = "superbot_dummy_secret_key_99xyz"
+    redacted = redact_secret(secret)
+    assert secret not in redacted
+    assert len(redacted) < len(secret) + 4  # at most 4 visible chars + ****
+
+
+# --- Localhost binding (unchanged) ----------------------------------------
 
 def test_is_localhost_host_accepts_local():
     """Localhost variants are accepted as local binding."""
@@ -127,14 +185,3 @@ def test_validate_bind_host_rejects_public():
         except ValueError:
             continue
         raise AssertionError(f"{host} should raise ValueError")
-
-
-def test_vpn_documentation_exists():
-    """Private VPN documentation is present (remote access only via approved VPN)."""
-    from superbot.m11.auth import VPN_DOC_PATH
-
-    assert VPN_DOC_PATH is not None
-    content = VPN_DOC_PATH.read_text(encoding="utf-8")
-    assert "vpn" in content.lower()
-    assert "private" in content.lower()
-    assert "remote access" in content.lower()

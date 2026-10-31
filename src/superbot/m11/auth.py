@@ -1,8 +1,9 @@
-"""M11.3 — Auth sessions, roles, redaction, local binding, private VPN docs.
+"""M11.3 + Phase 2 — Auth sessions, roles, redaction, local binding, private VPN docs.
 
 Deterministic auth service:
-- SessionStore: create, validate (with expiry), invalidate sessions keyed by role
-- Role-based access control: backend enforces authorization for actions
+- SessionStore: create, validate (with expiry), invalidate sessions keyed by
+  an unpredictable server-issued token (never client-supplied roles)
+- Role-based access control: backend enforces authorization per action
 - Secret redaction: secrets masked, never exported in plaintext
 - Localhost-only binding enforcement: rejects 0.0.0.0 / public hosts
 - VPN_DOC_PATH: path to private VPN documentation (remote access only via
@@ -13,6 +14,7 @@ Stdlib-only; no import-time network/database activity; no public binding.
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import Enum
@@ -30,6 +32,16 @@ class Role(str, Enum):
 SESSION_TTL = timedelta(hours=8)
 
 
+def generate_session_token() -> str:
+    """Generate an unpredictable server-issued session token.
+
+    Tokens are created server-side using secrets.token_urlsafe and are never
+    derived from client input. The token itself is the bearer credential used
+    in the Authorization header.
+    """
+    return secrets.token_urlsafe(32)
+
+
 @dataclass
 class Session:
     """An authenticated session bound to a role."""
@@ -43,20 +55,27 @@ class Session:
 
 @dataclass
 class SessionStore:
-    """In-memory session store with role-based authorization checks.
+    """In-memory session store keyed by server-issued token.
 
     Sessions expire after SESSION_TTL. Validation is a pure predicate on the
-    stored session (no side effects).
+    stored session (no side effects). Tokens are unpredictable and issued by
+    the server; clients present them in the Authorization header.
     """
 
     _sessions: dict[str, Session] = field(default_factory=dict)
     _counter: int = field(default=0)
 
-    def create_session(self, role: Role) -> Session:
-        """Create a new active session for the given role."""
+    def create_session(self, role: Role) -> tuple[Session, str]:
+        """Create a new active session and return (session, token).
+
+        The token is an unpredictable server-issued value used as the bearer
+        credential; session_id is metadata only and is never used as a
+        credential.
+        """
         self._counter += 1
         now = datetime.now(tz=UTC)
         expires = now + SESSION_TTL
+        token = generate_session_token()
         session = Session(
             session_id=f"sess-{self._counter}",
             role=role,
@@ -64,12 +83,15 @@ class SessionStore:
             expires_at_utc=expires.isoformat(),
             is_active=True,
         )
-        self._sessions[session.session_id] = session
-        return session
+        self._sessions[token] = session
+        return session, token
 
-    def validate_session(self, session_id: str) -> Session | None:
-        """Return the session if active and not expired, else None."""
-        session = self._sessions.get(session_id)
+    def validate_token(self, token: str) -> Session | None:
+        """Return the session if the token is valid, active and not expired.
+
+        Returns None for unknown, inactive, or expired tokens.
+        """
+        session = self._sessions.get(token)
         if session is None or not session.is_active:
             return None
         try:
@@ -80,9 +102,10 @@ class SessionStore:
             return None
         return session
 
-    def invalidate_session(self, session_id: str) -> bool:
-        """Mark a session inactive. Returns True if a session was invalidated."""
-        session = self._sessions.get(session_id)
+    def invalidate_token(self, token: str) -> bool:
+        """Mark a token's session inactive. Returns True if a session was
+        invalidated, False if the token was unknown or already inactive."""
+        session = self._sessions.get(token)
         if session is None or not session.is_active:
             return False
         session.is_active = False
@@ -152,6 +175,7 @@ __all__ = [
     "Role",
     "Session",
     "SessionStore",
+    "generate_session_token",
     "is_localhost_host",
     "redact_secret",
     "validate_bind_host",

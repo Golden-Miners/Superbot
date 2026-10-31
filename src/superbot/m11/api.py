@@ -1,4 +1,4 @@
-"""M11.2 — FastAPI backend-driven state for the dashboard surfaces.
+"""M11.2 + Phase 2 — FastAPI backend-driven state for the dashboard surfaces.
 
 Serves overview/health, data explorer labels, research queue jobs,
 strategy/signal workbench, validation/experiment gate states,
@@ -6,8 +6,10 @@ portfolio/risk/internal simulation, audit/experiment library and
 settings/profiles.
 
 All state is deterministic and explicitly labeled synthetic / internal
-simulation. No live orders, no public binding, backend enforces
-authorization for sensitive settings changes.
+simulation. No live orders, no public binding. Every protected route
+requires a server-issued session token (Authorization: Bearer <token>);
+client-supplied role headers are rejected. Authorization is enforced on
+the server for every protected route.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
+from superbot.m11.auth import Session, SessionStore
 from superbot.supervisor.health import HealthStatus
 
 
@@ -368,6 +371,47 @@ STATE = DashboardState()
 
 
 # ---------------------------------------------------------------------------
+# Authentication / authorization
+# ---------------------------------------------------------------------------
+
+
+def _get_session(request: Request, store: SessionStore) -> Session | None:
+    """Extract and validate a bearer token from the Authorization header.
+
+    Returns the Session if a valid, active, unexpired token is presented,
+    else None. Client-supplied role headers (e.g. X-Operator-Role) are
+    never used for authorization.
+    """
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return None
+    token = auth[len("Bearer ") :].strip()
+    if not token:
+        return None
+    return store.validate_token(token)
+
+
+def _authorize(request: Request, store: SessionStore, action: str) -> Session:
+    """Authenticate and authorize for an action.
+
+    Returns the validated Session, or raises HTTP 401 (no/invalid token)
+    or HTTP 403 (insufficient role for the action).
+    """
+    session = _get_session(request, store)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="authentication required",
+        )
+    if not store.can(session.role, action):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="insufficient permissions",
+        )
+    return session
+
+
+# ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
 
@@ -381,11 +425,8 @@ def _overall_status(components: dict[str, HealthComponent]) -> str:
     return "healthy"
 
 
-def _operator_role(request: Request) -> str:
-    return request.headers.get("X-Operator-Role", "viewer")
-
-
-def create_app() -> FastAPI:
+def create_app(session_store: SessionStore | None = None) -> FastAPI:
+    store = session_store or SessionStore()
     app = FastAPI(
         title="Superbot Dashboard API",
         version="0.1.0",
@@ -395,7 +436,8 @@ def create_app() -> FastAPI:
     # --- Overview / health ------------------------------------------------
 
     @app.get("/health")
-    def health() -> dict[str, Any]:
+    def health(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_health")
         components = {
             name: {
                 "status": comp.status.value,
@@ -416,7 +458,10 @@ def create_app() -> FastAPI:
     # --- Data explorer ----------------------------------------------------
 
     @app.get("/data/explorer/{symbol}/{timeframe}")
-    def data_explorer(symbol: str, timeframe: str) -> dict[str, Any]:
+    def data_explorer(
+        request: Request, symbol: str, timeframe: str
+    ) -> dict[str, Any]:
+        _authorize(request, store, "read_data_explorer")
         return {
             "symbol": symbol,
             "timeframe": timeframe,
@@ -439,7 +484,8 @@ def create_app() -> FastAPI:
     # --- Research queue jobs ----------------------------------------------
 
     @app.get("/jobs")
-    def jobs(check_duplicates: bool = False) -> dict[str, Any]:
+    def jobs(request: Request, check_duplicates: bool = False) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
         duplicate_checks: list[dict[str, Any]] = []
         if check_duplicates:
             seen: dict[str, str] = {}
@@ -462,7 +508,10 @@ def create_app() -> FastAPI:
         }
 
     @app.post("/jobs/{job_id}/cancel")
-    def cancel_job(job_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    def cancel_job(
+        request: Request, job_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        _authorize(request, store, "cancel_job")
         job = next((j for j in STATE.jobs if j["job_id"] == job_id), None)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
@@ -470,13 +519,13 @@ def create_app() -> FastAPI:
             "confirm_destructive", False
         ):
             return JSONResponse(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    content={
-                        "blocked": True,
-                        "job_id": job_id,
-                        "reason": "uncheckpointed work could be lost; confirm destructive cancellation",
-                    },
-                )
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "blocked": True,
+                    "job_id": job_id,
+                    "reason": "uncheckpointed work could be lost; confirm destructive cancellation",
+                },
+            )
         return {
             "job_id": job_id,
             "status": JobStatus.CANCELED,
@@ -486,14 +535,18 @@ def create_app() -> FastAPI:
     # --- Strategy / signal workbench --------------------------------------
 
     @app.get("/strategies")
-    def strategies() -> dict[str, Any]:
+    def strategies(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
         return {
             "strategies": STATE.strategies,
             "label": "internal_simulation",
         }
 
     @app.get("/strategies/{strategy_id}")
-    def strategy_detail(strategy_id: str) -> dict[str, Any]:
+    def strategy_detail(
+        request: Request, strategy_id: str
+    ) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
         strategy = next(
             (s for s in STATE.strategies if s["strategy_id"] == strategy_id), None
         )
@@ -507,7 +560,10 @@ def create_app() -> FastAPI:
     # --- Validation / experiments -----------------------------------------
 
     @app.get("/experiments")
-    def experiments(outcome: str | None = None) -> dict[str, Any]:
+    def experiments(
+        request: Request, outcome: str | None = None
+    ) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
         items = STATE.experiments
         if outcome:
             items = [e for e in items if e["outcome"] == outcome]
@@ -519,7 +575,8 @@ def create_app() -> FastAPI:
     # --- Portfolio / risk / internal simulation ---------------------------
 
     @app.get("/risk")
-    def risk() -> dict[str, Any]:
+    def risk(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
         return {
             "positions": [
                 {
@@ -544,7 +601,10 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/risk/strategy/{strategy_id}")
-    def risk_strategy(strategy_id: str) -> dict[str, Any]:
+    def risk_strategy(
+        request: Request, strategy_id: str
+    ) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
         if strategy_id == "missing-spec-strategy":
             return {
                 "strategy_id": strategy_id,
@@ -561,26 +621,37 @@ def create_app() -> FastAPI:
     # --- Audit / experiment library ---------------------------------------
 
     @app.get("/audit/events")
-    def audit_events() -> dict[str, Any]:
+    def audit_events(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_audit")
         return {
             "events": STATE.audit_events,
             "label": "internal_simulation",
         }
 
     @app.get("/audit/chain/verify")
-    def audit_chain_verify() -> dict[str, Any]:
+    def audit_chain_verify(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_audit")
         return {"chain_intact": True, "event_count": len(STATE.audit_events)}
 
     # --- Settings / profiles ----------------------------------------------
 
     @app.get("/settings/profiles")
-    def settings_profiles(include_secrets: bool = False) -> dict[str, Any]:
+    def settings_profiles(request: Request) -> dict[str, Any]:
+        _authorize(request, store, "read_dashboard")
         profiles = {}
         for name, profile in STATE.profiles.items():
-            entry = dict(profile)
-            if not include_secrets:
-                entry.pop("secret", None)
-            entry["secret_redacted"] = True
+            # Serialize only safe fields; never include secret values.
+            entry = {
+                "value": profile.get("value"),
+                "validated_range": profile.get("validated_range"),
+                "source": profile.get("source"),
+                "version": profile.get("version"),
+                "actor": profile.get("actor"),
+                "reason": profile.get("reason"),
+                "timestamp_utc": profile.get("timestamp_utc"),
+                "last_known_good": profile.get("last_known_good"),
+                "secret_redacted": True,
+            }
             profiles[name] = entry
         return {
             "profiles": profiles,
@@ -590,19 +661,13 @@ def create_app() -> FastAPI:
 
     @app.post("/settings/profiles/{profile_name}")
     def update_profile(
-        profile_name: str, body: dict[str, Any], request: Request
+        request: Request,
+        profile_name: str,
+        body: dict[str, Any],
     ) -> dict[str, Any]:
+        _authorize(request, store, "change_settings")
         if profile_name not in STATE.profiles:
             raise HTTPException(status_code=404, detail="profile not found")
-        if _operator_role(request) != "owner":
-            return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={
-                    "allowed": False,
-                    "profile": profile_name,
-                    "reason": "only authorized owner may change sensitive settings",
-                },
-            )
         STATE.profiles[profile_name]["value"] = body.get("value", "unchanged")
         STATE.profiles[profile_name]["version"] = str(
             int(STATE.profiles[profile_name]["version"]) + 1
