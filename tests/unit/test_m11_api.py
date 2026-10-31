@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from superbot.m11.api import create_app
+from superbot.m11.api import JobStatus, create_app
 from superbot.m11.auth import Role, SessionStore
 
 
@@ -48,56 +48,56 @@ def _operator_token(store: SessionStore) -> str:
 
 def test_unauthenticated_health_returns_401():
     """No Authorization header on a protected route returns 401."""
-    client, _ = _make_client()
+    client = _make_client()
     response = client.get("/health")
     assert response.status_code == 401
 
 
 def test_unauthenticated_data_explorer_returns_401():
     """Data explorer requires authentication."""
-    client, _ = _make_client()
+    client = _make_client()
     response = client.get("/data/explorer/XAUUSD/M5")
     assert response.status_code == 401
 
 
 def test_unauthenticated_jobs_returns_401():
     """Jobs endpoint requires authentication."""
-    client, _ = _make_client()
+    client = _make_client()
     response = client.get("/jobs")
     assert response.status_code == 401
 
 
 def test_unauthenticated_strategies_returns_401():
     """Strategies endpoint requires authentication."""
-    client, _ = _make_client()
+    client = _make_client()
     response = client.get("/strategies")
     assert response.status_code == 401
 
 
 def test_unauthenticated_experiments_returns_401():
     """Experiments endpoint requires authentication."""
-    client, _ = _make_client()
+    client = _make_client()
     response = client.get("/experiments")
     assert response.status_code == 401
 
 
 def test_unauthenticated_risk_returns_401():
     """Risk endpoint requires authentication."""
-    client, _ = _make_client()
+    client = _make_client()
     response = client.get("/risk")
     assert response.status_code == 401
 
 
 def test_unauthenticated_audit_returns_401():
     """Audit endpoint requires authentication."""
-    client, _ = _make_client()
+    client = _make_client()
     response = client.get("/audit/events")
     assert response.status_code == 401
 
 
 def test_unauthenticated_settings_returns_401():
     """Settings endpoint requires authentication."""
-    client, _ = _make_client()
+    client = _make_client()
     response = client.get("/settings/profiles")
     assert response.status_code == 401
 
@@ -122,11 +122,8 @@ def test_empty_token_returns_401():
 
 def test_viewer_can_read_health():
     """A viewer with a valid token can read health."""
-    client, _ = _make_client(_viewer_token(SessionStore()))
-    # _make_client creates its own store; we need a shared store.
     store = SessionStore()
-    client = TestClient(create_app(session_store=store))
-    client.headers["Authorization"] = f"Bearer {_viewer_token(store)}"
+    client = _make_client(store, _viewer_token(store))
     response = client.get("/health")
     assert response.status_code == 200
 
@@ -294,3 +291,66 @@ def test_dummy_secret_not_exposed_in_api_response():
                 assert "dummy_secret_value_do_not_expose" not in str(val)
     finally:
         del STATE.profiles["dummy_secret_profile"]
+
+
+# --- Job lifecycle / cooperative cancellation (Phase 4.3) ------------------
+
+
+def _make_client(
+    store: SessionStore | None = None, token: str | None = None
+) -> TestClient:
+    if store is None:
+        store = SessionStore()
+    client = TestClient(create_app(session_store=store))
+    if token is not None:
+        client.headers["Authorization"] = f"Bearer {token}"
+    return client
+
+
+def _owner_token(store: SessionStore) -> str:
+    _, token = store.create_session(Role.OWNER)
+    return token
+
+
+def test_job_status_enum_includes_cancel_requested():
+    """JobStatus includes CANCEL_REQUESTED for cooperative cancellation."""
+    assert JobStatus.CANCEL_REQUESTED == "cancel_requested"
+
+
+def test_cancel_requested_is_distinct_from_canceled():
+    """CANCEL_REQUESTED is distinct from CANCELED."""
+    assert JobStatus.CANCEL_REQUESTED != JobStatus.CANCELED
+
+
+def test_cancel_with_confirmation_marks_cancel_requested_not_canceled():
+    """Canceling a checkpointed job with confirmation marks it
+    CANCEL_REQUESTED (cooperative), not immediately CANCELED."""
+    store = SessionStore()
+    client = _make_client(store, _owner_token(store))
+    response = client.post("/jobs/job-1/cancel", json={"confirm_destructive": True})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == JobStatus.CANCEL_REQUESTED
+
+
+def test_cancel_without_confirmation_on_uncheckpointed_returns_400():
+    """Canceling an uncheckpointed job without confirmation returns 400."""
+    store = SessionStore()
+    client = _make_client(store, _owner_token(store))
+    response = client.post("/jobs/job-1/cancel", json={"confirm_destructive": False})
+    assert response.status_code == 400
+    data = response.json()
+    assert data["blocked"] is True
+    assert "reason" in data
+
+
+def test_job_list_shows_cancel_requested_status():
+    """Jobs list reflects CANCEL_REQUESTED status after cancel confirmation."""
+    store = SessionStore()
+    client = _make_client(store, _owner_token(store))
+    client.post("/jobs/job-1/cancel", json={"confirm_destructive": True})
+    response = client.get("/jobs")
+    assert response.status_code == 200
+    data = response.json()
+    job = next(j for j in data["jobs"] if j["job_id"] == "job-1")
+    assert job["status"] == JobStatus.CANCEL_REQUESTED

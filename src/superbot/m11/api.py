@@ -43,6 +43,7 @@ class JobStatus(str, Enum):
     FAILED = "failed"
     BLOCKED = "blocked"
     DEFERRED = "deferred"
+    CANCEL_REQUESTED = "cancel_requested"
     CANCELED = "canceled"
 
 
@@ -530,10 +531,16 @@ def create_app(session_store: SessionStore | None = None) -> FastAPI:
                     "reason": "uncheckpointed work could be lost; confirm destructive cancellation",
                 },
             )
+        # Cooperative cancellation: mark the job for cancellation rather than
+        # completing it immediately. No worker management exists, so the job
+        # transitions to CANCEL_REQUESTED; a worker would need to cooperate
+        # by checking the cancellation flag and completing the cancel.
+        job["status"] = JobStatus.CANCEL_REQUESTED
+        job["cancel_requested_at_utc"] = _utc_now()
         return {
             "job_id": job_id,
-            "status": JobStatus.CANCELED,
-            "message": "canceled",
+            "status": JobStatus.CANCEL_REQUESTED,
+            "message": "cancellation requested; cooperative cancel pending",
         }
 
     # --- Strategy / signal workbench --------------------------------------
