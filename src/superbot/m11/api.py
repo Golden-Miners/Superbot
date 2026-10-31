@@ -112,19 +112,23 @@ class DashboardState:
     # -- seeding -----------------------------------------------------------
 
     def _seed_health(self) -> None:
+        # Health components start as NOT_PROBED — no actual probes have been
+        # run yet. Claiming HEALTHY without probing would be misleading.
+        # Real probes should be registered via HealthRegistry and their
+        # results reflected here before reporting HEALTHY/DEGRADED/BLOCKED.
         self.health_components = {
-            "api": HealthComponent("api", HealthStatus.HEALTHY, "API responding"),
+            "api": HealthComponent("api", HealthStatus.NOT_PROBED, "not probed"),
             "postgresql": HealthComponent(
-                "postgresql", HealthStatus.HEALTHY, "PostgreSQL reachable"
+                "postgresql", HealthStatus.NOT_PROBED, "not probed"
             ),
             "worker_supervisor": HealthComponent(
-                "worker_supervisor", HealthStatus.HEALTHY, "Supervisor active"
+                "worker_supervisor", HealthStatus.NOT_PROBED, "not probed"
             ),
             "model_runtime": HealthComponent(
-                "model_runtime", HealthStatus.HEALTHY, "Model runtime loaded"
+                "model_runtime", HealthStatus.NOT_PROBED, "not probed"
             ),
             "mt5_readonly": HealthComponent(
-                "mt5_readonly", HealthStatus.HEALTHY, "MT5 read-only connected"
+                "mt5_readonly", HealthStatus.NOT_PROBED, "not probed"
             ),
         }
 
