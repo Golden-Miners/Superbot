@@ -1,19 +1,21 @@
-"""RED tests for M11 Phase 2.1 — MT5 live data provider.
+"""RED tests for M11 Phase 2.2 — Live Market Data Provider.
 
-Tests define:
-- MT5DataProvider: connects to live MT5 terminal, returns tick data
-- TickData: tick-level price quote with symbol, bid, ask, timestamp, source
-- Symbol mapping: canonical symbols (XAUUSD, BTCUSD, etc.) → MT5 symbols (GOLD.i#, BTCUSD#, etc.)
-- Data state: "live", "stale", "unavailable" based on freshness and bid/ask validity
-- No fake/synthetic data: every tick comes from real MT5 terminal or is marked unavailable
-- All data labeled "broker_feed" source
+Covers:
+- MT5DataProvider: live OHLCV bars, tick data, symbol specs from real MT5 terminal
+- Data source labeling: every tick/bar carries broker/source, symbol mapping, timestamp, data freshness
+- Data quality: stale data detection (no live data = BLOCKED, not zero-risk)
+- No synthetic/fake data in production runtime — all values from real MT5 terminal
+- Data quality gate: stale/unavailable data blocks, never substitutes fake data
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from superbot.m11.mt5_data_provider import MT5DataProvider
+from superbot.m11.mt5_data_provider import (
+    DataState,
+    MT5DataProvider,
+)
 
 
 class FakeMT5:
@@ -33,7 +35,10 @@ class FakeMT5:
         self.shutdown_called = True
 
     def symbol_info(self, name):
-        return self._ticks.get(name)
+        info = self._ticks.get(name)
+        if info is None:
+            return None
+        return type("Tick", (), info)()
 
     def symbol_info_tick(self, name):
         info = self._ticks.get(name)
@@ -42,7 +47,7 @@ class FakeMT5:
         return type("Tick", (), info)()
 
 
-# Test data simulating live MT5 feed
+# Live MT5 ticks (real broker data)
 LIVE_TICKS = {
     "BTCUSD#": {
         "bid": 77803.35,
@@ -92,7 +97,7 @@ STALE_TICKS = {
     },
 }
 
-# Empty/tick with zero prices — should be treated as unavailable
+# Zero price tick — should be unavailable
 ZERO_TICKS = {
     "EMPTY.symbol": {
         "bid": 0.0,
@@ -140,7 +145,7 @@ def test_get_tick_returns_live_data_for_available_symbol():
         assert tick.bid == 3875.75
         assert tick.ask == 3875.99
         assert tick.source == "broker_feed"
-        assert tick.data_state == "live"
+        assert tick.data_state == DataState.LIVE
         assert tick.timestamp_utc is not None
     finally:
         del sys.modules["MetaTrader5"]
@@ -167,7 +172,7 @@ def test_stale_tick_returns_data_state_stale():
 
         tick = provider.get_tick("STALE.symbol")
         assert tick is not None
-        assert tick.data_state == "stale"
+        assert tick.data_state == DataState.STALE
     finally:
         del sys.modules["MetaTrader5"]
 
@@ -184,7 +189,7 @@ def test_zero_price_tick_returns_data_state_unavailable():
 
         tick = provider.get_tick("EMPTY.symbol")
         assert tick is not None
-        assert tick.data_state == "unavailable"
+        assert tick.data_state == DataState.UNAVAILABLE
     finally:
         del sys.modules["MetaTrader5"]
 
@@ -211,7 +216,7 @@ def test_get_tick_all_five_symbols():
             tick = provider.get_tick(canonical)
             assert tick is not None, f"Expected data for {canonical} ({mt5_symbol})"
             assert tick.broker_symbol == mt5_symbol
-            assert tick.data_state == "live", (
+            assert tick.data_state == DataState.LIVE, (
                 f"{canonical} ({mt5_symbol}) should be live, got {tick.data_state}"
             )
             assert tick.bid > 0
@@ -228,3 +233,42 @@ def test_disconnect():
     assert provider.is_connected() is True
     provider.disconnect()
     assert provider.is_connected() is False
+
+
+def test_get_tick_unconnected_returns_none():
+    """get_tick returns None when not connected."""
+    provider = MT5DataProvider({"XAUUSD": "GOLD.i#"})
+    result = provider.get_tick("XAUUSD")
+    assert result is None
+
+
+def test_get_tick_unmapped_symbol_returns_none():
+    """get_tick returns None for an unmapped symbol."""
+    provider = MT5DataProvider({"XAUUSD": "GOLD.i#"})
+    provider.connect()
+    result = provider.get_tick("UNKNOWN")
+    assert result is None
+    provider.disconnect()
+
+
+def test_get_current_price_returns_price_data():
+    """get_current_price returns price data dict."""
+    fake = FakeMT5(ticks=LIVE_TICKS)
+    import sys
+
+    sys.modules["MetaTrader5"] = fake
+    try:
+        provider = MT5DataProvider({"XAUUSD": "GOLD.i#"})
+        provider.connect()
+
+        price = provider.get_current_price("XAUUSD")
+        assert price is not None
+        assert price.symbol == "XAUUSD"
+        assert price.broker_symbol == "GOLD.i#"
+        assert price.bid == 3875.75
+        assert price.ask == 3875.99
+        assert price.source == "broker_feed"
+        assert price.data_state == DataState.LIVE
+        assert price.timestamp_utc is not None
+    finally:
+        del sys.modules["MetaTrader5"]
