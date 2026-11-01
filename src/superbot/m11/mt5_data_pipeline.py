@@ -68,26 +68,49 @@ class ResearchPipeline:
         bars = self.mt5_provider.get_ohlcv(symbol, timeframe, count)
         tuple_bars = []
         for bar in bars:
+            if isinstance(bar, dict):
+                inst_id = bar.get("instrument_id", bar.get("symbol"))
+                prov_sym = bar.get("provider_symbol", bar.get("broker_symbol"))
+                tf = bar["timeframe"]
+                time_val = bar["bar_open_utc"]
+                timestamp_utc = bar["bar_open_utc"]
+                open_val = bar["open"]
+                high_val = bar["high"]
+                low_val = bar["low"]
+                close_val = bar["close"]
+                volume = bar.get("volume")
+            else:
+                inst_id = bar.instrument_id
+                prov_sym = bar.provider_symbol
+                tf = bar.timeframe
+                time_val = bar.bar_open_utc
+                timestamp_utc = bar.bar_open_utc
+                open_val = bar.open
+                high_val = bar.high
+                low_val = bar.low
+                close_val = bar.close
+                volume = bar.volume
+
             self.storage.store_bar(
-                instrument_id=bar.instrument_id,
-                provider_symbol=bar.provider_symbol,
-                timeframe=bar.timeframe,
-                bar_open_utc=bar.bar_open_utc,
-                open=bar.open,
-                high=bar.high,
-                low=bar.low,
-                close=bar.close,
-                volume=bar.volume,
-                source_timestamp=bar.source_timestamp,
+                instrument_id=inst_id,
+                provider_symbol=prov_sym,
+                timeframe=tf,
+                bar_open_utc=timestamp_utc,
+                open=Decimal(str(open_val)),
+                high=Decimal(str(high_val)),
+                low=Decimal(str(low_val)),
+                close=Decimal(str(close_val)),
+                volume=Decimal(str(volume)) if volume is not None else None,
+                source_timestamp=timestamp_utc,
                 source="broker_feed",
             )
             tuple_bars.append(
                 (
-                    int(bar.bar_open_utc.timestamp()),
-                    bar.open,
-                    bar.high,
-                    bar.low,
-                    bar.close,
+                    int(time_val.timestamp()),
+                    Decimal(str(open_val)),
+                    Decimal(str(high_val)),
+                    Decimal(str(low_val)),
+                    Decimal(str(close_val)),
                 )
             )
         return tuple_bars
