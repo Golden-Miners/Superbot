@@ -188,6 +188,11 @@ class MT5DataProvider:
             data_state=data_state,
         )
 
+        tick = self._build_tick(symbol, broker_symbol, tick_data)
+        if tick is not None and tick.data_state == DataState.LIVE:
+            return tick
+        return None
+
     def get_current_price(self, symbol: str) -> TickData | None:
         """Return current price for a symbol from the live feed.
 
@@ -235,7 +240,7 @@ class MT5DataProvider:
         bars: list[OHLCVBar] = []
         for rate in rates:
             bar = self._build_ohlcv(symbol, broker_symbol, timeframe, rate)
-            if bar is not None:
+            if bar is not None and bar.quality_status == QualityStatus.VALID:
                 bars.append(bar)
 
         return bars
