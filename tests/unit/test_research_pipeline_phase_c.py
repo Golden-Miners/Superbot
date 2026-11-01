@@ -1,12 +1,12 @@
 """RED tests for V2 Phase C — Signal Generation & Alerting on Live Data.
 
 Covers:
-- ResearchPipeline.run_strategy() returns signals from live MT5 data
-- Signal data quality gate: no signals from stale/invalid data
-- Signal persistence: signals stored and retrievable
-- Signal deduplication: same symbol/timeframe doesn't duplicate
-- Signal source labeling: all signals labeled broker_feed
-- No synthetic/fake data in signal generation
+- ResearchPipeline.run_strategy() returns signals from live MT5 broker data
+- Data quality gate rejects stale/invalid ticks/bars — no signals from bad data
+- All signal data labeled broker_feed — never synthetic/fixture
+- Signal history persisted and retrievable
+- Health endpoint reports MT5 connectivity status
+- Data explorer endpoint returns live broker data labels
 
 No live trading authorized. Read-only signal generation only.
 """
@@ -16,18 +16,20 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from superbot.m11.mt5_data_provider import DataState, MT5DataProvider
 from superbot.m11.mt5_data_pipeline import ResearchPipeline
+from superbot.m11.mt5_data_provider import DataState
 from superbot.persistence.market_data_storage import MarketDataStorage
+
+# --- Fake MT5DataProvider for testing without a live terminal ---
 
 
 class FakeMT5DataProvider:
     """Fake MT5DataProvider for testing without a live terminal."""
 
-    def __init__(self, ticks: dict | None = None, bars: list | None = None):
-        self._ticks = ticks or {}
-        self._bars = bars or []
+    def __init__(self) -> None:
         self._connected = True
+        self.ticks: dict = {}
+        self.bars: list = []
 
     def connect(self):
         self._connected = True
@@ -40,9 +42,9 @@ class FakeMT5DataProvider:
         return self._connected
 
     def get_tick(self, symbol):
-        if symbol not in self._ticks:
+        if symbol not in self.ticks:
             return None
-        tick = self._ticks[symbol]
+        tick = self.ticks[symbol]
         return type("TickData", (), {
             "symbol": symbol,
             "broker_symbol": tick.get("broker_symbol", symbol),
@@ -90,10 +92,10 @@ def test_run_strategy_returns_signals_from_live_data():
             "broker_symbol": "BTCUSD#",
             "timeframe": "M5",
             "bar_open_utc": now,
-            "open": Decimal("77900"),
-            "high": Decimal("78000"),
-            "low": Decimal("77850"),
-            "close": Decimal("77980"),
+            "open": Decimal(77900),
+            "high": Decimal(78000),
+            "low": Decimal(77850),
+            "close": Decimal(77980),
             "volume": Decimal("1.0"),
             "source_timestamp": now,
             "source_timezone": "UTC",
@@ -125,7 +127,7 @@ def test_run_strategy_rejects_stale_data():
     pipeline = ResearchPipeline(provider, storage)
 
     # Add stale bar data
-    old_time = datetime.now(tz=UTC).replace(year=2020)
+    old_time = datetime(2020, 1, 15, 10, 0, 0, tzinfo=UTC)
     bars = []
     for i in range(10):
         bars.append({
@@ -133,10 +135,10 @@ def test_run_strategy_rejects_stale_data():
             "broker_symbol": "BTCUSD#",
             "timeframe": "M5",
             "bar_open_utc": old_time,
-            "open": Decimal("77900"),
-            "high": Decimal("78000"),
-            "low": Decimal("77850"),
-            "close": Decimal("77980"),
+            "open": Decimal(77900),
+            "high": Decimal(78000),
+            "low": Decimal(77850),
+            "close": Decimal(77980),
             "volume": Decimal("1.0"),
             "source_timestamp": old_time,
             "source_timezone": "UTC",
@@ -166,10 +168,10 @@ def test_run_strategy_rejects_invalid_data():
             "broker_symbol": "BTCUSD#",
             "timeframe": "M5",
             "bar_open_utc": now,
-            "open": Decimal("77900"),
-            "high": Decimal("78000"),
-            "low": Decimal("77850"),
-            "close": Decimal("77980"),
+            "open": Decimal(77900),
+            "high": Decimal(78000),
+            "low": Decimal(77850),
+            "close": Decimal(77980),
             "volume": Decimal("1.0"),
             "source_timestamp": now,
             "source_timezone": "UTC",
@@ -198,10 +200,10 @@ def test_signal_has_broker_feed_source():
             "broker_symbol": "BTCUSD#",
             "timeframe": "M5",
             "bar_open_utc": now,
-            "open": Decimal("77900"),
-            "high": Decimal("78000"),
-            "low": Decimal("77850"),
-            "close": Decimal("77980"),
+            "open": Decimal(77900),
+            "high": Decimal(78000),
+            "low": Decimal(77850),
+            "close": Decimal(77980),
             "volume": Decimal("1.0"),
             "source_timestamp": now,
             "source_timezone": "UTC",
@@ -218,7 +220,7 @@ def test_signal_has_broker_feed_source():
 
 
 def test_no_synthetic_data_in_production():
-    """No synthetic data source in pipeline."""
+    """No synthetic data source in production pipeline."""
     provider = FakeMT5DataProvider()
     storage = MarketDataStorage()
     pipeline = ResearchPipeline(provider, storage)
@@ -229,10 +231,10 @@ def test_no_synthetic_data_in_production():
         "broker_symbol": "BTCUSD#",
         "timeframe": "M5",
         "bar_open_utc": datetime.now(tz=UTC),
-        "open": Decimal("77900"),
-        "high": Decimal("78000"),
-        "low": Decimal("77850"),
-        "close": Decimal("77980"),
+        "open": Decimal(77900),
+        "high": Decimal(78000),
+        "low": Decimal(77850),
+        "close": Decimal(77980),
         "volume": Decimal("1.0"),
         "source_timestamp": datetime.now(tz=UTC),
         "source_timezone": "UTC",
