@@ -248,7 +248,7 @@ class MT5DataProvider:
         seen_timestamps: set[datetime] = set()
         for rate in rates:
             bar = self._build_ohlcv(symbol, broker_symbol, timeframe, rate)
-            if bar is not None and bar.quality_status == QualityStatus.VALID:
+            if bar is not None and bar.quality_status != QualityStatus.INVALID:
                 # Skip duplicate timestamps
                 if bar.bar_open_utc in seen_timestamps:
                     continue
