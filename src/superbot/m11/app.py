@@ -14,6 +14,7 @@ from __future__ import annotations
 import streamlit as st
 
 from superbot.m11 import ui as m11_ui
+from superbot.m11.design_tokens import inject_css
 from superbot.m11.mt5_data_provider import MT5DataProvider
 
 PAGES = {
@@ -35,6 +36,7 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    inject_css(st)
     st.sidebar.title("Superbot")
     st.sidebar.caption("Local-first research, validation & simulation workstation")
     st.sidebar.divider()

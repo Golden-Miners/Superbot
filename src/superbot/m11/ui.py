@@ -8,7 +8,11 @@ State is backend-driven (superbot.m11.api.STATE). Charts use Plotly
 (superbot.m11.charts). Every value is labeled internal simulation /
 research — never live broker data. Render functions accept an optional
 `ui` object (defaults to streamlit) so they are testable without a
-browser.
+browser, and an optional `mt5_data_provider` so live broker data can be
+rendered when the terminal is connected.
+
+Design system: Swiss Style / Minimalist via src/superbot/m11/design_tokens.py.
+CSS variables are injected once per session via inject_css().
 """
 
 from __future__ import annotations
@@ -17,6 +21,13 @@ from typing import Any
 
 from superbot.m11.api import STATE
 from superbot.m11.charts import ohlcv_chart
+from superbot.m11.design_tokens import (
+    format_pct,
+    gate_badge,
+    health_badge,
+    inject_css,
+    source_label,
+)
 
 
 def _get_ui(ui: Any | None) -> Any:
@@ -27,45 +38,9 @@ def _get_ui(ui: Any | None) -> Any:
     return ui
 
 
-# ---------------------------------------------------------------------------
-# Pure display helpers (color is never the only signal — text/icon included)
-# ---------------------------------------------------------------------------
-
-
-def health_badge(status: str) -> tuple[str, str]:
-    """Return (text, icon) for a health status."""
-    return {
-        "healthy": ("healthy", "✓"),
-        "degraded": ("degraded", "⚠"),
-        "blocked": ("blocked", "✗"),
-    }.get(status, (status, "•"))
-
-
-def gate_badge(state: str) -> tuple[str, str]:
-    """Return (text, icon-key) for a validation gate state.
-
-    States: PASS, FAIL, BLOCKED, NOT RUN (design.md §2 Validation).
-    """
-    return {
-        "PASS": ("PASS", "pass"),
-        "FAIL": ("FAIL", "fail"),
-        "BLOCKED": ("BLOCKED", "blocked"),
-        "NOT RUN": ("NOT RUN", "not_run"),
-    }.get(state, (state, "unknown"))
-
-
-def format_pct(value: float) -> str:
-    """Format a percentage with precise units, trimming trailing zeros."""
-    return f"{value:g}%"
-
-
-def source_label(source: str) -> str:
-    """Return a source label that never implies live broker data."""
-    return {
-        "synthetic_fixture": "synthetic fixture — not live broker data",
-        "imported_history": "imported history — not live broker data",
-        "broker_feed": "broker feed — read-only, not live orders",
-    }.get(source, f"{source} — not live broker data")
+def _inject_css(ui: Any) -> None:
+    """Inject the Swiss Style design system CSS into the Streamlit UI."""
+    inject_css(ui)
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +52,7 @@ def render_overview(ui: Any | None = None, mt5_data_provider: Any | None = None)
     """Overview surface: health row, coverage, queue, strategy lifecycle,
     simulated equity/risk, alerts and blockers."""
     u = _get_ui(ui)
+    _inject_css(u)
     u.title("Superbot — Overview")
     u.subheader("Health row")
     mt5_connected = mt5_data_provider is not None and mt5_data_provider.is_connected()
@@ -106,6 +82,7 @@ def render_data_explorer(ui: Any | None = None, mt5_data_provider: Any | None = 
     """Market/data explorer: OHLCV chart, source label, freshness, coverage,
     data-quality state."""
     u = _get_ui(ui)
+    _inject_css(u)
     u.title("Market / Data Explorer")
     u.write(source_label("broker_feed"))
 
@@ -145,6 +122,7 @@ def render_research_queue(ui: Any | None = None) -> None:
     resource use, progress, checkpoint, start/duration, pause/resume/cancel.
     All job data is synthetic/internal simulation — never live broker data."""
     u = _get_ui(ui)
+    _inject_css(u)
     u.title("Research Queue")
     u.write(source_label("synthetic_fixture"))
     for job in STATE.jobs:
@@ -164,6 +142,7 @@ def render_strategy_workbench(ui: Any | None = None) -> None:
     """Strategy/signal workbench: family/version/parameters, rules, proposal
     source, evidence refs, schema validation, signal ID, rejection reason."""
     u = _get_ui(ui)
+    _inject_css(u)
     u.title("Strategy / Signal Workbench")
     for s in STATE.strategies:
         u.write(
@@ -181,6 +160,7 @@ def render_validation_experiments(ui: Any | None = None) -> None:
     """Validation / experiment details: walk-forward, OOS metrics, costs,
     robustness, gate states PASS/FAIL/BLOCKED/NOT RUN."""
     u = _get_ui(ui)
+    _inject_css(u)
     u.title("Validation / Experiments")
     for exp in STATE.experiments:
         u.write(
@@ -197,6 +177,7 @@ def render_portfolio_risk(ui: Any | None = None) -> None:
     stop/partial timeline, MTM, costs, exposure, P&L, limits, drawdown,
     halt state. Labeled internal simulation — no live orders."""
     u = _get_ui(ui)
+    _inject_css(u)
     u.title("Portfolio / Risk (Internal Simulation)")
     u.write(source_label("synthetic_fixture"))
     u.metric("Exposure gross", "265.00")
@@ -214,6 +195,7 @@ def render_audit_library(ui: Any | None = None) -> None:
     Append-only events, evidence refs, correction linkage, version refs.
     All audit data is synthetic/internal simulation — never live broker data."""
     u = _get_ui(ui)
+    _inject_css(u)
     u.title("Audit / Experiment Library")
     u.write(source_label("synthetic_fixture"))
     for ev in STATE.audit_events:
@@ -230,6 +212,7 @@ def render_settings_profiles(ui: Any | None = None) -> None:
     demo-readiness. Value, range, source, version, actor/reason, timestamp,
     last-known-good. Secrets redacted; no live-order control."""
     u = _get_ui(ui)
+    _inject_css(u)
     u.title("Settings / Profiles")
     for name, prof in STATE.profiles.items():
         u.write(
