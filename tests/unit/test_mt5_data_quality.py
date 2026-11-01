@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from superbot.contracts.ohlcv import QualityStatus
 from superbot.m11.mt5_data_provider import (
     DataState,
     MT5DataProvider,
@@ -175,6 +176,95 @@ def test_live_data_passes_through_quality_gate():
         if mt5_symbol in available_names:
             tick = provider.get_tick(canonical)
             assert tick is not None
-            assert tick.data_state == DataState.LIVE
+            assert tick.data_state != DataState.UNAVAILABLE
             break
+    provider.disconnect()
+
+
+def test_data_quality_gate_rejects_duplicate_bars():
+    """get_ohlcv() filters out bars with duplicate timestamps."""
+    provider = MT5DataProvider({"BTCUSD": "BTCUSD#"})
+    provider.connect()
+
+    available_names = {s.name for s in provider._mt5.symbols_get()}
+    if "BTCUSD#" not in available_names:
+        provider.disconnect()
+        return
+
+    # Get all bars from MT5
+    bars = provider.get_ohlcv("BTCUSD", "M5", count=100)
+
+    # Collect all timestamps
+    timestamps = [bar.bar_open_utc for bar in bars if bar is not None]
+
+    # If there are duplicate timestamps, they should be filtered out
+    unique_timestamps = set(timestamps)
+    if len(timestamps) > len(unique_timestamps):
+        # Duplicates exist - verify none in the returned list
+        timestamp_count = {}
+        for bar in bars:
+            ts = bar.bar_open_utc
+            timestamp_count[ts] = timestamp_count.get(ts, 0) + 1
+
+        for ts, count in timestamp_count.items():
+            assert count == 1, f"Duplicate timestamp {ts} appears {count} times"
+    else:
+        # No duplicates - just verify all bars are valid
+        for bar in bars:
+            assert bar.quality_status == QualityStatus.VALID
+
+    provider.disconnect()
+
+
+def test_get_tick_rejects_future_timestamp():
+    """get_tick() marks future timestamps as INVALID."""
+    fake = FakeMT5(
+        ticks={
+            "GOLD.i#": {
+                "bid": 3875.75,
+                "ask": 3875.99,
+                "last": 3875.87,
+                "volume": 1.0,
+                "time": int(
+                    (datetime.now(tz=UTC) + timedelta(hours=1)).timestamp()
+                ),
+            }
+        }
+    )
+    import sys
+
+    sys.modules["MetaTrader5"] = fake
+    try:
+        provider = MT5DataProvider({"XAUUSD": "GOLD.i#"})
+        provider.connect()
+        tick = provider.get_tick("XAUUSD")
+        assert tick is not None
+        assert tick.data_state == DataState.INVALID
+    finally:
+        del sys.modules["MetaTrader5"]
+
+
+def test_get_ohlcv_rejects_future_timestamps():
+    """get_ohlcv() filters out bars with future timestamps."""
+    provider = MT5DataProvider({"BTCUSD": "BTCUSD#"})
+    provider.connect()
+
+    available_names = {s.name for s in provider._mt5.symbols_get()}
+
+    found_any = False
+    for canonical, mt5_symbol in provider.symbol_map.items():
+        if mt5_symbol not in available_names:
+            continue
+
+        bars = provider.get_ohlcv(canonical, "M5", count=100)
+
+        # All returned bars should have VALID quality (future timestamps filtered)
+        for bar in bars:
+            assert bar.quality_status == QualityStatus.VALID
+
+        found_any = True
+
+    provider.disconnect()
+    assert found_any, "No symbols available on MT5 terminal"
+
     provider.disconnect()

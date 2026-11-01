@@ -38,6 +38,7 @@ class DataState(str, Enum):
     LIVE = "live"
     STALE = "stale"
     UNAVAILABLE = "unavailable"
+    INVALID = "invalid"
 
 
 @dataclass(frozen=True)
@@ -149,7 +150,8 @@ class MT5DataProvider:
             "time": getattr(tick_info, "time", None),
         }
 
-        return self._build_tick(symbol, broker_symbol, tick_data)
+        tick = self._build_tick(symbol, broker_symbol, tick_data)
+        return tick
 
     def _build_tick(
         self, symbol: str, broker_symbol: str, tick_data: dict
@@ -161,20 +163,27 @@ class MT5DataProvider:
         last = tick_data.get("last")
         volume = tick_data.get("volume")
 
-        # Determine data state
-        data_state = DataState.LIVE
+        bid = tick_data.get("bid")
+        ask = tick_data.get("ask")
+        last = tick_data.get("last")
+        volume = tick_data.get("volume")
 
-        if bid is None or ask is None or bid <= 0 or ask <= 0:
+        timestamp_utc = self._timestamp_from_raw(tick_raw_time=tick_data.get("time"))
+        if timestamp_utc is None:
+            # Missing timestamp → return tick with UNAVAILABLE state
             data_state = DataState.UNAVAILABLE
-            timestamp_utc = None
+        elif bid is None or ask is None or bid <= 0 or ask <= 0:
+            # Zero/missing bid or ask → unavailable
+            data_state = DataState.UNAVAILABLE
         else:
-            timestamp_utc = self._timestamp_from_raw(tick_raw_time=tick_data.get("time"))
-            if timestamp_utc is None:
-                data_state = DataState.UNAVAILABLE
+            age = (datetime.now(tz=UTC) - timestamp_utc).total_seconds()
+            if age > 60.0:
+                data_state = DataState.STALE
+            elif age < -60.0:
+                # Future timestamp (more than 60 seconds ahead) - invalid
+                data_state = DataState.INVALID
             else:
-                age = (datetime.now(tz=UTC) - timestamp_utc).total_seconds()
-                if age > 60.0:
-                    data_state = DataState.STALE
+                data_state = DataState.LIVE
 
         return TickData(
             symbol=symbol,
@@ -189,9 +198,7 @@ class MT5DataProvider:
         )
 
         tick = self._build_tick(symbol, broker_symbol, tick_data)
-        if tick is not None and tick.data_state == DataState.LIVE:
-            return tick
-        return None
+        return tick
 
     def get_current_price(self, symbol: str) -> TickData | None:
         """Return current price for a symbol from the live feed.
@@ -238,9 +245,14 @@ class MT5DataProvider:
             return []
 
         bars: list[OHLCVBar] = []
+        seen_timestamps: set[datetime] = set()
         for rate in rates:
             bar = self._build_ohlcv(symbol, broker_symbol, timeframe, rate)
             if bar is not None and bar.quality_status == QualityStatus.VALID:
+                # Skip duplicate timestamps
+                if bar.bar_open_utc in seen_timestamps:
+                    continue
+                seen_timestamps.add(bar.bar_open_utc)
                 bars.append(bar)
 
         return bars
@@ -297,6 +309,8 @@ class MT5DataProvider:
             age = (datetime.now(tz=UTC) - timestamp_utc).total_seconds()
             if age > 60.0:
                 quality_status = QualityStatus.STALE
+            elif age < -60.0:
+                quality_status = QualityStatus.INVALID
             else:
                 quality_status = QualityStatus.VALID
 
