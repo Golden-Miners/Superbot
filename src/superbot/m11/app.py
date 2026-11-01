@@ -49,7 +49,10 @@ def main() -> None:
     st.sidebar.caption(f"MT5 terminal: {'connected' if mt5_connected else 'not connected'}")
 
     page_fn = PAGES[selection]
-    page_fn(mt5_data_provider=mt5_provider)
+    if selection in ("Overview", "Market / Data Explorer"):
+        page_fn(mt5_data_provider=mt5_provider)
+    else:
+        page_fn()
 
 
 if __name__ == "__main__":
