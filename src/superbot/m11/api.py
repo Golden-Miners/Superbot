@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 from superbot.m10.scheduler import Job
 from superbot.m11.auth import Session, SessionStore
 from superbot.m11.integration import DashboardService
+from superbot.m11.mt5_data_provider import MT5DataProvider
 from superbot.supervisor.health import HealthStatus
 
 
@@ -435,21 +436,36 @@ def _overall_status(components: dict[str, HealthComponent]) -> str:
 def create_app(
     session_store: SessionStore | None = None,
     dashboard_service: DashboardService | None = None,
+    mt5_data_provider: MT5DataProvider | None = None,
 ) -> FastAPI:
     store = session_store or SessionStore()
     dashboard = dashboard_service or DashboardService()
+    mt5 = mt5_data_provider or MT5DataProvider()
     app = FastAPI(
         title="Superbot Dashboard API",
         version="0.1.0",
         servers=[{"url": "http://127.0.0.1:8000", "description": "localhost only"}],
     )
+    app.state.mt5_provider = mt5
 
     # --- Overview / health ------------------------------------------------
 
     @app.get("/health")
     def health(request: Request) -> dict[str, Any]:
         _authorize(request, store, "read_health")
-        return dashboard.get_health()
+        health_data = dashboard.get_health()
+        # Report MT5 connectivity status from the live provider
+        if mt5.is_connected():
+            health_data["components"]["mt5_readonly"] = {
+                "status": "healthy",
+                "message": "MT5 terminal connected — read-only",
+            }
+        else:
+            health_data["components"]["mt5_readonly"] = {
+                "status": "blocked",
+                "message": "MT5 terminal not connected",
+            }
+        return health_data
 
     # --- Data explorer ----------------------------------------------------
 
@@ -458,24 +474,78 @@ def create_app(
         request: Request, symbol: str, timeframe: str
     ) -> dict[str, Any]:
         _authorize(request, store, "read_data_explorer")
-        return {
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "source": DataSource.SYNTHETIC_FIXTURE,
-            "label": "synthetic fixture — not live broker data",
-            "live": False,
-            "freshness": "2024-01-15T10:00:00+00:00",
-            "coverage": "M5 bars available",
-            "timestamp_convention": "utc",
-            "data_quality": {
-                "gaps": 0,
-                "duplicates": 0,
-                "suspicious_values": 0,
-                "stale_feed": False,
-                "source_disagreement": False,
-                "unverified_specs": False,
-            },
-        }
+        # Return live broker data from MT5 provider
+        mt5 = app.state.mt5_provider if hasattr(app.state, "mt5_provider") else None
+        bars = mt5.get_ohlcv(symbol, timeframe, count=100) if mt5 else []
+        tick = mt5.get_tick(symbol) if mt5 else None
+
+        if bars:
+            latest = bars[0]
+            return {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "source": DataSource.BROKER_FEED,
+                "label": "broker feed — read-only, not live orders",
+                "live": True,
+                "freshness": latest.bar_open_utc.isoformat(),
+                "coverage": f"{timeframe} bars available",
+                "timestamp_convention": "utc",
+                "data_quality": {
+                    "gaps": 0,
+                    "duplicates": 0,
+                    "suspicious_values": 0,
+                    "stale_feed": latest.quality_status == "stale",
+                    "source_disagreement": False,
+                    "unverified_specs": False,
+                },
+                "open": str(latest.open),
+                "high": str(latest.high),
+                "low": str(latest.low),
+                "close": str(latest.close),
+                "volume": str(latest.volume) if latest.volume else None,
+            }
+        elif tick:
+            return {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "source": DataSource.BROKER_FEED,
+                "label": "broker feed — read-only, not live orders",
+                "live": tick.data_state.value == "live",
+                "freshness": tick.timestamp_utc.isoformat(),
+                "coverage": "tick data available",
+                "timestamp_convention": "utc",
+                "data_quality": {
+                    "gaps": 0,
+                    "duplicates": 0,
+                    "suspicious_values": 0,
+                    "stale_feed": tick.data_state.value == "stale",
+                    "source_disagreement": False,
+                    "unverified_specs": False,
+                },
+                "bid": tick.bid,
+                "ask": tick.ask,
+                "last": tick.last,
+                "volume": tick.volume,
+            }
+        else:
+            return {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "source": DataSource.BROKER_FEED,
+                "label": "broker feed — read-only, not live orders",
+                "live": False,
+                "freshness": "unavailable",
+                "coverage": "no data",
+                "timestamp_convention": "utc",
+                "data_quality": {
+                    "gaps": 0,
+                    "duplicates": 0,
+                    "suspicious_values": 0,
+                    "stale_feed": True,
+                    "source_disagreement": False,
+                    "unverified_specs": False,
+                },
+            }
 
     # --- Research queue jobs ----------------------------------------------
 
