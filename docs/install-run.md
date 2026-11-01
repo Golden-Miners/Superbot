@@ -20,8 +20,10 @@ This installs the runtime dependencies declared in `pyproject.toml`:
 
 ```
 fastapi>=0.100,<1
-streamlit>=1.30,<2
+pyarrow==26.0.*
 plotly>=5,<9
+streamlit>=1.30,<2
+uvicorn>=0.24,<1
 ```
 
 Dev tooling (already installed in this environment):
@@ -78,6 +80,7 @@ Some `tests/unit` cases require a live MT5 terminal and are skipped when unavail
 |---|---|
 | Python | 3.14.7 |
 | fastapi | 0.143.0 |
+| pyarrow | 26.0.0 |
 | streamlit | 1.66.1 |
 | plotly | 7.1.0 |
 | pytest | 9.1.1 |
