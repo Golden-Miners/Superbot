@@ -166,7 +166,7 @@ def test_data_explorer_source_label_not_live(page_with_screenshot, streamlit_app
     page_with_screenshot.goto(streamlit_app)
     navigate_to(page_with_screenshot, "data_explorer")
     body = page_with_screenshot.locator("body").inner_text()
-    assert "synthetic" in body.lower()
+    assert "broker feed" in body.lower()
     assert "not live" in body.lower()
 
 

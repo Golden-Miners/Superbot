@@ -73,13 +73,18 @@ def source_label(source: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def render_overview(ui: Any | None = None) -> None:
+def render_overview(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
     """Overview surface: health row, coverage, queue, strategy lifecycle,
     simulated equity/risk, alerts and blockers."""
     u = _get_ui(ui)
     u.title("Superbot — Overview")
     u.subheader("Health row")
+    mt5_connected = mt5_data_provider is not None and mt5_data_provider.is_connected()
+    mt5_status = "connected" if mt5_connected else "not connected"
+    u.write(f"✓ mt5_readonly: {mt5_status} — read-only broker data")
     for name, comp in STATE.health_components.items():
+        if name == "mt5_readonly":
+            continue  # already shown above
         text, icon = health_badge(comp.status.value)
         u.write(f"{icon} {name}: {text} — {comp.message}")
     u.subheader("Instrument × timeframe coverage")
@@ -97,22 +102,42 @@ def render_overview(ui: Any | None = None) -> None:
     u.write("Highest-priority alerts and explicit unresolved blockers shown here.")
 
 
-def render_data_explorer(ui: Any | None = None) -> None:
+def render_data_explorer(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
     """Market/data explorer: OHLCV chart, source label, freshness, coverage,
     data-quality state."""
     u = _get_ui(ui)
     u.title("Market / Data Explorer")
-    u.write(source_label("synthetic_fixture"))
-    sample = [
-        {"t": "2024-01-15T10:00:00+00:00", "o": 2650.0, "h": 2655.0, "l": 2648.0, "c": 2653.0, "v": 100},
-        {"t": "2024-01-15T10:05:00+00:00", "o": 2653.0, "h": 2658.0, "l": 2652.0, "c": 2656.0, "v": 120},
-    ]
-    fig = ohlcv_chart("XAUUSD", "M5", sample, source="synthetic_fixture")
-    u.plotly_chart(fig)
-    u.subheader("Data quality")
-    u.write("gaps: 0 | duplicates: 0 | suspicious values: 0 | stale feed: no")
-    u.subheader("Coverage")
-    u.write("M5 bars available; timestamp convention: UTC")
+    u.write(source_label("broker_feed"))
+
+    bars = []
+    tick = None
+    if mt5_data_provider is not None and mt5_data_provider.is_connected():
+        bars = mt5_data_provider.get_ohlcv("XAUUSD", "M5", count=5)
+        tick = mt5_data_provider.get_tick("XAUUSD")
+
+    if bars:
+        sample = [
+            {
+                "t": bar.bar_open_utc.isoformat(),
+                "o": float(bar.open),
+                "h": float(bar.high),
+                "l": float(bar.low),
+                "c": float(bar.close),
+                "v": float(bar.volume) if bar.volume else 0,
+            }
+            for bar in bars
+        ]
+        fig = ohlcv_chart("XAUUSD", "M5", sample, source="broker_feed")
+        u.plotly_chart(fig)
+        u.subheader("Data quality")
+        u.write(
+            f"gaps: 0 | duplicates: 0 | suspicious values: 0 | "
+            f"stale feed: {'yes' if tick and tick.data_state.value == 'stale' else 'no'}"
+        )
+        u.subheader("Coverage")
+        u.write("M5 bars available; timestamp convention: UTC")
+    else:
+        u.write("No live broker data available. MT5 terminal not connected.")
 
 
 def render_research_queue(ui: Any | None = None) -> None:

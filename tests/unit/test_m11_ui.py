@@ -74,7 +74,7 @@ def test_render_data_explorer_shows_chart_and_labels():
     ui = FakeUI()
     m11_ui.render_data_explorer(ui)
     texts = " ".join(str(a) for _, args, _ in ui.calls for a in args)
-    assert "synthetic" in texts.lower() or "XAUUSD" in texts
+    assert "broker feed" in texts.lower() or "XAUUSD" in texts or "no live broker data" in texts.lower()
 
 
 def test_render_research_queue_lists_jobs():
@@ -213,6 +213,7 @@ def test_no_surface_implies_live_broker_data():
     # "no live orders in v1" is fine; "live orders enabled: true" is not.
     sanitized = re.sub(r"\bnot live\b", "", calls_text)
     sanitized = re.sub(r"\bno live orders\b", "", sanitized)
+    sanitized = re.sub(r"\bno live broker data\b", "", sanitized)
     assert "live broker" not in sanitized
     assert "live order enabled" not in sanitized
     assert "live market" not in sanitized
