@@ -1,14 +1,12 @@
-"""RED tests for V2.1 Phase 1 — MT5 connectivity with real terminal.
+"""RED tests for V2.2 — Live Market Data Provider.
 
-Tests define:
-- MT5 Python package import (MetaTrader5)
-- MT5 terminal initialization and connection
-- Terminal metadata retrieval (server name, company, etc.)
-- Account info retrieval (login, balance, currency, equity)
-- Symbol discovery for target instruments (XAUUSD, XAGUSD, BTCUSD, ETHUSD, USOIL)
-- Symbol spec retrieval (trade contract size, tick size, volume min/max, etc.)
-- No broker credentials exposed in any response
+Covers:
+- MT5DataProvider.get_ohlcv() returns OHLCV bars from live MT5 terminal
+- Each bar carries broker/source, symbol, timestamp, data freshness
+- Data quality gate: stale data rejected (never fake data)
+- Symbol specifications from MT5 (contract size, tick size, volume limits)
 - All data labeled broker_feed source
+- No synthetic/fake data in production runtime
 - No order submission methods
 
 No live trading authorized. Read-only access only.
@@ -18,6 +16,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from superbot.contracts.instrument import AssetClass
 from superbot.m11.mt5_data_provider import (
     DataState,
     MT5DataProvider,
@@ -411,4 +410,94 @@ def test_get_tick_unmapped_symbol_returns_none():
     provider.connect()
     result = provider.get_tick("UNKNOWN")
     assert result is None
+    provider.disconnect()
+
+
+# --- Phase 2.2: OHLCV data and symbol specs ---
+
+
+def test_get_ohlcv_returns_live_data():
+    """get_ohlcv() returns OHLCV bars from live MT5."""
+    provider = MT5DataProvider({"BTCUSD": "BTCUSD#"})
+    provider.connect()
+
+    available_names = {s.name for s in provider._mt5.symbols_get()}
+
+    found_any = False
+    for canonical, mt5_symbol in provider.symbol_map.items():
+        if mt5_symbol in available_names:
+            bars = provider.get_ohlcv(canonical, "M5", count=5)
+            assert bars is not None
+            assert len(bars) > 0
+            assert len(bars) <= 5
+            for bar in bars:
+                assert bar.instrument_id == canonical
+                assert bar.provider_symbol == mt5_symbol
+                assert bar.timeframe == "M5"
+                assert bar.open > 0
+                assert bar.high > 0
+                assert bar.low > 0
+                assert bar.close > 0
+                assert bar.high >= bar.open
+                assert bar.high >= bar.close
+                assert bar.low <= bar.open
+                assert bar.low <= bar.close
+                assert bar.bar_open_utc is not None
+            found_any = True
+            break
+
+    assert found_any, "No symbols available on MT5 terminal"
+    provider.disconnect()
+
+
+def test_get_ohlcv_unmapped_symbol_returns_empty():
+    """get_ohlcv() returns empty list for unmapped symbol."""
+    provider = MT5DataProvider({"XAUUSD": "GOLD.i#"})
+    provider.connect()
+    result = provider.get_ohlcv("UNKNOWN", "M5", count=5)
+    assert result == []
+    provider.disconnect()
+
+
+def test_get_symbol_spec_returns_spec():
+    """get_symbol_spec() returns InstrumentSpec from live MT5."""
+    provider = MT5DataProvider({"XAUUSD": "GOLD.i#"})
+    provider.connect()
+
+    available_names = {s.name for s in provider._mt5.symbols_get()}
+
+    found_any = False
+    for canonical, mt5_symbol in provider.symbol_map.items():
+        if mt5_symbol in available_names:
+            spec = provider.get_symbol_spec(canonical)
+            assert spec is not None
+            assert spec.instrument_id == canonical
+            assert spec.provider_symbol == mt5_symbol
+            assert spec.provider_id == "xm-mt5"
+            assert spec.asset_class in (
+                AssetClass.METAL,
+                AssetClass.CRYPTO,
+                AssetClass.ENERGY,
+            )
+            assert spec.quote_currency is not None
+            assert spec.base_currency is not None
+            assert spec.contract_size is not None
+            assert spec.contract_size > 0
+            assert spec.tick_size is not None
+            assert spec.tick_size > 0
+            assert spec.volume_min is not None
+            assert spec.volume_min > 0
+            found_any = True
+            break
+
+    assert found_any, "No symbols available on MT5 terminal"
+    provider.disconnect()
+
+
+def test_get_symbol_spec_unknown_returns_none():
+    """get_symbol_spec() returns None for unknown symbol."""
+    provider = MT5DataProvider({"XAUUSD": "GOLD.i#"})
+    provider.connect()
+    spec = provider.get_symbol_spec("UNKNOWN")
+    assert spec is None
     provider.disconnect()
