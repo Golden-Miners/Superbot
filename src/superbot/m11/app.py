@@ -14,6 +14,7 @@ from __future__ import annotations
 import streamlit as st
 
 from superbot.m11 import ui as m11_ui
+from superbot.m11.mt5_data_provider import MT5DataProvider
 
 PAGES = {
     "Overview": m11_ui.render_overview,
@@ -39,11 +40,16 @@ def main() -> None:
     st.sidebar.divider()
     selection = st.sidebar.radio("Navigate", list(PAGES.keys()), index=0)
     st.sidebar.divider()
-    st.sidebar.caption("All values: internal simulation / research — not live broker data")
+    st.sidebar.caption("Local-first research, validation & simulation workstation")
     st.sidebar.caption("No live orders in V1. Localhost only.")
 
+    # Connect to MT5 terminal for live market data
+    mt5_provider = MT5DataProvider()
+    mt5_connected = mt5_provider.connect()
+    st.sidebar.caption(f"MT5 terminal: {'connected' if mt5_connected else 'not connected'}")
+
     page_fn = PAGES[selection]
-    page_fn()
+    page_fn(mt5_data_provider=mt5_provider)
 
 
 if __name__ == "__main__":
