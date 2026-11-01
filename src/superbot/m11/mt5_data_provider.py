@@ -70,7 +70,7 @@ class MT5DataProvider:
     }
 
     def __init__(self, symbol_map: dict[str, str] | None = None) -> None:
-        self.symbol_map: dict[str, str] = dict(symbol_map or {})
+        self.symbol_map: dict[str, str] = dict(symbol_map or self.DEFAULT_SYMBOL_MAP)
         self._mt5 = None
         self._connected = False
     def connect(self) -> bool:
@@ -172,6 +172,13 @@ class MT5DataProvider:
             source="broker_feed",
             data_state=data_state,
         )
+
+    def get_current_price(self, symbol: str) -> TickData | None:
+        """Return current price for a symbol from the live feed.
+
+        Delegates to get_tick(). Returns TickData or None if not available.
+        """
+        return self.get_tick(symbol)
 
     @staticmethod
     def _timestamp_from_raw(tick_raw_time) -> datetime | None:
