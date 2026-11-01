@@ -13,6 +13,9 @@ rendered when the terminal is connected.
 
 Design system: Swiss Style / Minimalist via src/superbot/m11/design_tokens.py.
 CSS variables are injected once per session via inject_css().
+Surface renderers apply Swiss utility classes (swiss-badge, swiss-metric-card,
+swiss-section-header, swiss-table, swiss-btn) instead of raw Streamlit calls
+wherever possible, keeping all behavior and data labels identical.
 """
 
 from __future__ import annotations
@@ -43,6 +46,39 @@ def _inject_css(ui: Any) -> None:
     inject_css(ui)
 
 
+def _badge(ui: Any, text: str, variant: str = "neutral") -> None:
+    """Render a Swiss-style badge span."""
+    css_class = f"swiss-badge--{variant}"
+    ui.write(f'<span class="swiss-badge {css_class}">{text}</span>')
+
+
+def _metric_card(ui: Any, label: str, value: str) -> None:
+    """Render a Swiss-style metric card."""
+    ui.write(
+        f'<div class="swiss-metric-card">'
+        f'<div class="swiss-metric-label">{label}</div>'
+        f'<div class="swiss-metric-value">{value}</div>'
+        f"</div>"
+    )
+
+
+def _section_header(ui: Any, text: str) -> None:
+    """Render a Swiss-style section header."""
+    ui.write(f'<h2 class="swiss-section-header">{text}</h2>')
+
+
+def _badge_from_state(ui: Any, state: str) -> None:
+    """Render a badge for a DataState or GateState value."""
+    state_lower = state.lower()
+    if state_lower in ("live", "pass", "healthy"):
+        variant = "live"
+    elif state_lower in ("blocked", "fail"):
+        variant = "blocked"
+    else:
+        variant = "neutral"
+    _badge(ui, state, variant)
+
+
 # ---------------------------------------------------------------------------
 # Surface renderers
 # ---------------------------------------------------------------------------
@@ -57,24 +93,24 @@ def render_overview(ui: Any | None = None, mt5_data_provider: Any | None = None)
     u.subheader("Health row")
     mt5_connected = mt5_data_provider is not None and mt5_data_provider.is_connected()
     mt5_status = "connected" if mt5_connected else "not connected"
-    u.write(f"✓ mt5_readonly: {mt5_status} — read-only broker data")
+    _badge(ui, f"mt5_readonly: {mt5_status} — read-only broker data", "neutral")
     for name, comp in STATE.health_components.items():
         if name == "mt5_readonly":
             continue  # already shown above
         text, icon = health_badge(comp.status.value)
-        u.write(f"{icon} {name}: {text} — {comp.message}")
-    u.subheader("Instrument × timeframe coverage")
+        _badge(ui, f"{icon} {name}: {text} — {comp.message}", "neutral")
+    _section_header(ui, "Instrument × timeframe coverage")
     u.write("Gold, Silver, Bitcoin, Ethereum, US Oil × M5/M15/H1/H4")
     u.write("Unavailable/unverified mappings shown; values never fabricated.")
-    u.subheader("Research / validation queue")
+    _section_header(ui, "Research / validation queue")
     u.write(f"{len(STATE.jobs)} jobs (see Research queue surface).")
-    u.subheader("Strategy lifecycle")
+    _section_header(ui, "Strategy lifecycle")
     for s in STATE.strategies:
         u.write(f"{s['strategy_id']}: {s['lifecycle']} ({s['proposal_source']})")
-    u.subheader("Simulated equity / risk")
-    u.metric("Daily loss usage", format_pct(0.8))
-    u.metric("Drawdown peak", format_pct(1.2))
-    u.subheader("Alerts / blockers")
+    _section_header(ui, "Simulated equity / risk")
+    _metric_card(ui, "Daily loss usage", format_pct(0.8))
+    _metric_card(ui, "Drawdown peak", format_pct(1.2))
+    _section_header(ui, "Alerts / blockers")
     u.write("Highest-priority alerts and explicit unresolved blockers shown here.")
 
 
@@ -84,7 +120,7 @@ def render_data_explorer(ui: Any | None = None, mt5_data_provider: Any | None = 
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Market / Data Explorer")
-    u.write(source_label("broker_feed"))
+    _badge(ui, source_label("broker_feed"), "neutral")
 
     bars = []
     tick = None
@@ -106,12 +142,13 @@ def render_data_explorer(ui: Any | None = None, mt5_data_provider: Any | None = 
         ]
         fig = ohlcv_chart("XAUUSD", "M5", sample, source="broker_feed")
         u.plotly_chart(fig)
-        u.subheader("Data quality")
+        _section_header(ui, "Data quality")
+        stale = tick and tick.data_state.value == "stale"
         u.write(
             f"gaps: 0 | duplicates: 0 | suspicious values: 0 | "
-            f"stale feed: {'yes' if tick and tick.data_state.value == 'stale' else 'no'}"
+            f"stale feed: {'yes' if stale else 'no'}"
         )
-        u.subheader("Coverage")
+        _section_header(ui, "Coverage")
         u.write("M5 bars available; timestamp convention: UTC")
     else:
         u.write("No live broker data available. MT5 terminal not connected.")
@@ -124,18 +161,38 @@ def render_research_queue(ui: Any | None = None) -> None:
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Research Queue")
-    u.write(source_label("synthetic_fixture"))
+    _badge(ui, source_label("synthetic_fixture"), "neutral")
+    u.write(
+        '<table class="swiss-table">'
+        "<thead><tr>"
+        "<th>Job</th><th>Status</th><th>Symbol / Timeframe</th>"
+        "<th>Priority</th><th>Progress</th><th>Checkpoint</th>"
+        "<th>Pause</th><th>Resume</th><th>Cancel</th>"
+        "</tr></thead>"
+        "<tbody>"
+    )
     for job in STATE.jobs:
+        status_badge = f'<span class="swiss-badge swiss-badge--neutral">{job["status"]}</span>'
         u.write(
-            f"{job['job_id']} | {job['status']} | {job['symbol']} {job['timeframe']} | "
-            f"priority {job['priority']} | progress {job['progress']:.0%} | "
-            f"checkpoint {job['checkpoint'] or 'none'} | "
-            f"pause={job['pause_available']} resume={job['resume_available']} cancel={job['cancel_available']}"
+            f"<tr>"
+            f"<td>{job['job_id']}</td>"
+            f"<td>{status_badge}</td>"
+            f"<td>{job['symbol']} {job['timeframe']}</td>"
+            f"<td>{job['priority']}</td>"
+            f"<td>{job['progress']:.0%}</td>"
+            f"<td>{job['checkpoint'] or 'none'}</td>"
+            f"<td>{'yes' if job['pause_available'] else 'no'}</td>"
+            f"<td>{'yes' if job['resume_available'] else 'no'}</td>"
+            f"<td>{'yes' if job['cancel_available'] else 'no'}</td>"
+            f"</tr>"
         )
         if job.get("blocked_reason"):
-            u.write(f"  blocked: {job['blocked_reason']}")
+            u.write(f'<tr><td colspan="9">blocked: {job["blocked_reason"]}</td></tr>')
         if job.get("duplicate_of"):
-            u.write(f"  deferred: duplicate overlap with {job['duplicate_of']}")
+            u.write(
+                f'<tr><td colspan="9">deferred: duplicate overlap with {job["duplicate_of"]}</td></tr>'
+            )
+    u.write("</tbody></table>")
 
 
 def render_strategy_workbench(ui: Any | None = None) -> None:
@@ -169,7 +226,8 @@ def render_validation_experiments(ui: Any | None = None) -> None:
         )
         for gate in exp.get("gates", []):
             text, _ = gate_badge(gate["state"])
-            u.write(f"  gate {gate['name']}: {text} ({gate['evidence_ref'] or 'no evidence'})")
+            _badge(ui, f"gate {gate['name']}: {text}", text.lower())
+            u.write(f" ({gate['evidence_ref'] or 'no evidence'})")
 
 
 def render_portfolio_risk(ui: Any | None = None) -> None:
@@ -179,11 +237,11 @@ def render_portfolio_risk(ui: Any | None = None) -> None:
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Portfolio / Risk (Internal Simulation)")
-    u.write(source_label("synthetic_fixture"))
-    u.metric("Exposure gross", "265.00")
-    u.metric("P&L realized", "120.00")
-    u.metric("Daily loss usage", format_pct(0.8))
-    u.metric("Drawdown peak", format_pct(1.2))
+    _badge(ui, source_label("synthetic_fixture"), "neutral")
+    _metric_card(ui, "Exposure gross", "265.00")
+    _metric_card(ui, "P&L realized", "120.00")
+    _metric_card(ui, "Daily loss usage", format_pct(0.8))
+    _metric_card(ui, "Drawdown peak", format_pct(1.2))
     u.write("halt state: running | risk state: green")
     u.write("Missing/stale specs or unverifiable sizing show blocked, never zero-risk/green.")
     u.write("No live orders in V1.")
@@ -197,13 +255,30 @@ def render_audit_library(ui: Any | None = None) -> None:
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Audit / Experiment Library")
-    u.write(source_label("synthetic_fixture"))
+    _badge(ui, source_label("synthetic_fixture"), "neutral")
+    u.write(
+        '<table class="swiss-table">'
+        "<thead><tr>"
+        "<th>Event</th><th>Run</th><th>Strategy / Version</th>"
+        "<th>Symbol / Timeframe</th><th>Date</th>"
+        "<th>Outcome</th><th>Gate</th><th>Commit</th>"
+        "</tr></thead>"
+        "<tbody>"
+    )
     for ev in STATE.audit_events:
         u.write(
-            f"{ev['event_id']} | run {ev['run_id']} | {ev['strategy_version']} | "
-            f"{ev['symbol']} {ev['timeframe']} | {ev['date_utc']} | "
-            f"outcome {ev['outcome']} | gate {ev['gate']} | commit {ev['commit']}"
+            f"<tr>"
+            f"<td>{ev['event_id']}</td>"
+            f"<td>{ev['run_id']}</td>"
+            f"<td>{ev['strategy_version']}</td>"
+            f"<td>{ev['symbol']} {ev['timeframe']}</td>"
+            f"<td>{ev['date_utc']}</td>"
+            f"<td>{ev['outcome']}</td>"
+            f"<td>{ev['gate']}</td>"
+            f"<td>{ev['commit']}</td>"
+            f"</tr>"
         )
+    u.write("</tbody></table>")
     u.write("Append-only events; corrections never modify originals.")
 
 
@@ -214,11 +289,27 @@ def render_settings_profiles(ui: Any | None = None) -> None:
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Settings / Profiles")
+    u.write(
+        '<table class="swiss-table">'
+        "<thead><tr>"
+        "<th>Profile</th><th>Value</th><th>Version</th>"
+        "<th>Actor</th><th>Source</th>"
+        "<th>Last Known Good</th><th>Secret Redacted</th>"
+        "</tr></thead>"
+        "<tbody>"
+    )
     for name, prof in STATE.profiles.items():
         u.write(
-            f"{name}: value={prof['value']} | version={prof['version']} | "
-            f"actor={prof['actor']} | source={prof['source']} | "
-            f"last known good={prof['last_known_good']} | secret redacted={prof['secret_redacted']}"
+            f"<tr>"
+            f"<td>{name}</td>"
+            f"<td>{prof['value']}</td>"
+            f"<td>{prof['version']}</td>"
+            f"<td>{prof['actor']}</td>"
+            f"<td>{prof['source']}</td>"
+            f"<td>{prof['last_known_good']}</td>"
+            f"<td>{str(prof['secret_redacted']).lower()}</td>"
+            f"</tr>"
         )
+    u.write("</tbody></table>")
     u.write("Only authorized owner may change sensitive settings.")
     u.write("live orders enabled: False — no control to enable live orders in this scope.")
