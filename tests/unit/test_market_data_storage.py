@@ -232,3 +232,96 @@ def test_storage_acquisition_timestamp_set_automatically():
     ticks = storage.get_ticks("XAUUSD")
     assert ticks[0].acquisition_timestamp is not None
     assert before <= ticks[0].acquisition_timestamp <= after
+
+
+def test_storage_persists_ticks_across_restart(tmp_path):
+    """Stored ticks survive a storage restart — read from same file."""
+    storage_path = tmp_path / "test_storage.json"
+    storage1 = MarketDataStorage(storage_path=storage_path)
+    storage1.store_tick("XAUUSD", "GOLD.i#", 3875.75, 3875.99, 3875.87, 1.0,
+                        FIXED_TIMESTAMP, "broker_feed")
+    storage1.store_tick("BTCUSD", "BTCUSD#", 77803.35, 77818.35, 77810.0, 0.5,
+                        FIXED_TIMESTAMP, "broker_feed")
+
+    storage2 = MarketDataStorage(storage_path=storage_path)
+    ticks = storage2.get_ticks("XAUUSD")
+    assert len(ticks) == 1
+    assert ticks[0].symbol == "XAUUSD"
+    assert ticks[0].bid == 3875.75
+    assert ticks[0].ask == 3875.99
+
+    btcs = storage2.get_ticks("BTCUSD")
+    assert len(btcs) == 1
+    assert btcs[0].symbol == "BTCUSD"
+    assert btcs[0].bid == 77803.35
+
+
+def test_storage_persists_bars_across_restart(tmp_path):
+    """Stored bars survive a storage restart — read from same file."""
+    storage_path = tmp_path / "test_storage_bars.json"
+    storage1 = MarketDataStorage(storage_path=storage_path)
+    storage1.store_bar("XAUUSD", "GOLD.i#", "M5", FIXED_TIMESTAMP,
+                       Decimal("3875.75"), Decimal("3875.99"), Decimal("3875.50"),
+                       Decimal("3875.90"), Decimal("1.0"), FIXED_TIMESTAMP, "broker_feed")
+    storage1.store_bar("ETHUSD", "ETHUSD#", "H1", FIXED_TIMESTAMP,
+                       Decimal("2270.11"), Decimal("2272.01"), Decimal("2269.00"),
+                       Decimal("2271.00"), Decimal("2.5"), FIXED_TIMESTAMP, "broker_feed")
+
+    storage2 = MarketDataStorage(storage_path=storage_path)
+    bars = storage2.get_bars("XAUUSD", "M5")
+    assert len(bars) == 1
+    assert bars[0].instrument_id == "XAUUSD"
+    assert bars[0].open == Decimal("3875.75")
+
+    eth_bars = storage2.get_bars("ETHUSD", "H1")
+    assert len(eth_bars) == 1
+    assert eth_bars[0].instrument_id == "ETHUSD"
+
+
+def test_storage_persists_signals_across_restart(tmp_path):
+    """Stored signals survive a storage restart — read from same file."""
+    storage_path = tmp_path / "test_storage_signals.json"
+    storage1 = MarketDataStorage(storage_path=storage_path)
+    storage1.store_signal(
+        symbol="XAUUSD", broker_symbol="GOLD.i#",
+        signal_type="entry_long", entry_price=Decimal("3875.75"),
+        stop_price=Decimal("3870.00"), depth_pct=Decimal("2.0"),
+        data_state="live", source="broker_feed",
+        timestamp_utc=FIXED_TIMESTAMP, rejection_reason=None,
+    )
+    storage1.store_signal(
+        symbol="BTCUSD", broker_symbol="BTCUSD#",
+        signal_type=None, entry_price=None, stop_price=None,
+        depth_pct=None,
+        data_state="stale", source="broker_feed",
+        timestamp_utc=FIXED_TIMESTAMP, rejection_reason="data_quality_rejected",
+    )
+
+    storage2 = MarketDataStorage(storage_path=storage_path)
+    signals = storage2.get_signal_history()
+    assert len(signals) == 2
+    sig0 = signals[0]
+    assert sig0.signal_type == "entry_long"
+    assert sig0.entry_price == Decimal("3875.75")
+    sig1 = signals[1]
+    assert sig1.signal_type is None
+    assert sig1.rejection_reason == "data_quality_rejected"
+
+
+def test_storage_prevents_duplicate_bars_on_restart(tmp_path):
+    """Re-storing the same bar doesn't create duplicates after restart."""
+    storage_path = tmp_path / "test_storage_dup.json"
+    storage1 = MarketDataStorage(storage_path=storage_path)
+    storage1.store_bar("XAUUSD", "GOLD.i#", "M5", FIXED_TIMESTAMP,
+                       Decimal("3875.75"), Decimal("3875.99"), Decimal("3875.50"),
+                       Decimal("3875.90"), Decimal("1.0"), FIXED_TIMESTAMP, "broker_feed")
+    storage1.store_bar("XAUUSD", "GOLD.i#", "M5", FIXED_TIMESTAMP,
+                       Decimal("3875.75"), Decimal("3875.99"), Decimal("3875.50"),
+                       Decimal("3875.90"), Decimal("1.0"), FIXED_TIMESTAMP, "broker_feed")
+
+    bars = storage1.get_bars("XAUUSD", "M5")
+    assert len(bars) == 1, f"Expected 1 bar, got {len(bars)}"
+
+    storage2 = MarketDataStorage(storage_path=storage_path)
+    bars2 = storage2.get_bars("XAUUSD", "M5")
+    assert len(bars2) == 1, f"Expected 1 bar after restart, got {len(bars2)}"
