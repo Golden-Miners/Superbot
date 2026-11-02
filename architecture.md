@@ -186,3 +186,39 @@ Use these defaults for candidate-engine and storage/runtime comparisons unless a
 - Graceful shutdown stops new jobs, checkpoints/finishes interruptible work, persists, reconciles and exits.
 - Migration package: non-secret config, DB backup, dataset manifests/checksums, artifact refs, dependency locks and revalidation checklist.
 - Desktop migration requires reinstall/revalidation of deps/models; do not assume byte-identical environment.
+
+## 15. MT5 Live Data Flow
+
+**V2.1–V2.5 — Live broker market data via MT5 terminal (read-only).**
+
+```
+MT5 Terminal (XMGlobal-MT5 17)
+        |
+MetaTrader5 Python package (symbol_info, symbol_info_tick, copy_rates_from_pos)
+        |
+MT5DataProvider (src/superbot/m11/mt5_data_provider.py)
+        |- connect() / disconnect() / is_connected()
+        |- get_tick(symbol) -> TickData (bid/ask/last/volume/timestamp/data_state)
+        |- get_ohlcv(symbol, timeframe, count) -> list[OHLCVBar]
+        |- get_symbol_spec(symbol) -> InstrumentSpec
+        |- Data quality: live (<60s), stale (>60s), unavailable (zero bid/ask)
+        |- Data freshness gate: stale/unavailable bars filtered out
+        |
+FastAPI Backend (src/superbot/m11/api.py)
+        |- /health -> reports mt5_readonly: connected/not connected
+        |- /data/explorer/{symbol}/{timeframe} -> returns live OHLCV bars + source: broker_feed
+        |- All routes require server-issued session token (Authorization: Bearer <token>)
+        |
+Streamlit UI (src/superbot/m11/app.py, ui.py)
+        |- render_overview(ui, mt5_data_provider) -> MT5 connectivity status in health row
+        |- render_data_explorer(ui, mt5_data_provider) -> live OHLCV chart, broker_feed label
+        |- All 8 surfaces accept optional mt5_data_provider parameter
+        |- Graceful fallback: "No live broker data available. MT5 terminal not connected."
+```
+
+**Security constraints (all enforced):**
+- MT5 remains read-only: no order submission, trade execution, or execution authority
+- All data labeled `broker_feed` — never `synthetic_fixture` presented as live
+- Stale (>60s old) and invalid (bid/ask<=0, future timestamp) data marked UNAVAILABLE/INVALID
+- No synthetic market data in production runtime; synthetic only in isolated tests
+- Localhost-only binding; no public network exposure
