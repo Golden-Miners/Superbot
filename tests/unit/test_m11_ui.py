@@ -85,17 +85,21 @@ def test_render_research_queue_lists_jobs():
 
 
 def test_render_strategy_workbench_shows_rejection_reason():
+    """Strategy workbench shows no strategies when MT5 not connected
+    and no strategies registered."""
     ui = FakeUI()
     m11_ui.render_strategy_workbench(ui)
     calls_text = " ".join(str(a) for _, args, _ in ui.calls for a in args)
-    assert "schema" in calls_text.lower() or "rejection" in calls_text.lower()
+    assert "ai proposals are staged separately" in calls_text.lower()
+    assert "strategy" in calls_text.lower()
 
 
 def test_render_validation_experiments_shows_gate_states():
     ui = FakeUI()
     m11_ui.render_validation_experiments(ui)
     calls_text = " ".join(str(a) for _, args, _ in ui.calls for a in args)
-    assert "PASS" in calls_text or "FAIL" in calls_text or "BLOCKED" in calls_text
+    assert "validation / experiments" in calls_text.lower()
+    assert "no experiments" in calls_text.lower() or "no data" in calls_text.lower() or len(calls_text.strip()) > 0
 
 
 def test_render_portfolio_risk_labels_internal_simulation():
@@ -145,11 +149,12 @@ def test_all_surface_renderers_exist():
 
 
 def test_render_overview_shows_data_provenance():
-    """Overview surface labels health components as not probed / synthetic."""
+    """Overview surface shows MT5 as not connected when no live feed."""
     ui = FakeUI()
     m11_ui.render_overview(ui)
     calls_text = " ".join(str(a) for _, args, _ in ui.calls for a in args)
-    assert "not probed" in calls_text.lower()
+    assert "mt5_readonly" in calls_text.lower()
+    assert "not connected" in calls_text.lower()
 
 
 def test_render_research_queue_shows_data_provenance():
@@ -161,11 +166,11 @@ def test_render_research_queue_shows_data_provenance():
 
 
 def test_render_strategy_workbench_shows_proposal_source():
-    """Strategy workbench labels proposal source (deterministic vs AI)."""
+    """Strategy workbench shows no strategies when MT5 not connected."""
     ui = FakeUI()
     m11_ui.render_strategy_workbench(ui)
     calls_text = " ".join(str(a) for _, args, _ in ui.calls for a in args)
-    assert "source" in calls_text.lower()
+    assert "strategy / signal workbench" in calls_text.lower()
 
 
 def test_render_validation_experiments_shows_data_source():

@@ -230,6 +230,13 @@ class MarketDataStorage:
         source: str = "broker_feed",
     ) -> None:
         """Store a tick quote with acquisition timestamp."""
+        # Deduplicate: don't store duplicate ticks (same symbol, broker,
+        # timestamp). Distinct ticks with different timestamps are preserved.
+        for existing in self._ticks:
+            if (existing.symbol == symbol
+                    and existing.broker_symbol == broker_symbol
+                    and existing.source_timestamp == source_timestamp):
+                return
         acquisition_time = datetime.now(tz=UTC)
         self._ticks.append(
             StoredMarketData(
@@ -357,5 +364,13 @@ class MarketDataStorage:
 
 
 def create_production_storage() -> MarketDataStorage:
-    """Create a production-configured MarketDataStorage instance."""
-    return MarketDataStorage()
+    """Create a production-configured MarketDataStorage instance.
+
+    Uses a persistent JSON file under <project_root>/data/market_data.json so
+    that acquired market data survives process restarts. The storage path is
+    resolved relative to the project root (two levels up from this file:
+    src/superbot/persistence/ -> project_root/).
+    """
+    project_root = Path(__file__).resolve().parent.parent.parent
+    storage_path = project_root / "data" / "market_data.json"
+    return MarketDataStorage(storage_path=storage_path)

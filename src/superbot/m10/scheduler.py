@@ -241,6 +241,40 @@ class Scheduler:
             )
         return SchedulerResult(failed=True, job_id=job_id, error=error)
 
+    def get_job(self, job_id: str) -> Job | None:
+        """Return a job by its ID, or None if not found."""
+        return self._jobs.get(job_id)
+
+    def cancel_job(self, job_id: str, confirm_destructive: bool = False) -> SchedulerResult | None:
+        """Cancel a job cooperatively.
+
+        If the job is not checkpointed and confirm_destructive is False,
+        returns a SchedulerResult indicating the cancel is blocked.
+        Otherwise transitions the job to CANCEL_REQUESTED.
+        Returns None if the job is not found.
+        """
+        job = self._jobs.get(job_id)
+        if job is None:
+            return None
+        if not job.payload.get("checkpointed", False) and not confirm_destructive:
+            return SchedulerResult(
+                accepted=False,
+                job_id=job_id,
+                reason="uncheckpointed work could be lost; confirm destructive cancellation",
+            )
+        self._jobs[job_id] = Job(
+            job.job_id,
+            job.priority,
+            job.payload,
+            job.scheduled_at,
+            "cancel_requested",
+        )
+        return SchedulerResult(
+            accepted=True,
+            job_id=job_id,
+            reason="cancellation requested; cooperative cancel pending",
+        )
+
 
 # ---------------------------------------------------------------------------
 # Convenience functions
