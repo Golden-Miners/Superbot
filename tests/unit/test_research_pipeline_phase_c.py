@@ -30,6 +30,27 @@ class FakeMT5DataProvider:
         self._connected = True
         self.ticks: dict = {}
         self.bars: list = []
+        self.symbol_map = {
+            "XAUUSD": "GOLD.i#",
+            "XAGUSD": "SILVER.i#",
+            "BTCUSD": "BTCUSD#",
+            "ETHUSD": "ETHUSD#",
+            "USOIL": "OILCash#",
+        }
+        self.symbol_map = {
+            "XAUUSD": "GOLD.i#",
+            "XAGUSD": "SILVER.i#",
+            "BTCUSD": "BTCUSD#",
+            "ETHUSD": "ETHUSD#",
+            "USOIL": "OILCash#",
+        }
+        self.symbol_map = {
+            "XAUUSD": "GOLD.i#",
+            "XAGUSD": "SILVER.i#",
+            "BTCUSD": "BTCUSD#",
+            "ETHUSD": "ETHUSD#",
+            "USOIL": "OILCash#",
+        }
 
     def connect(self):
         self._connected = True

@@ -217,7 +217,7 @@ def test_data_quality_gate_rejects_duplicate_bars():
 
 
 def test_get_tick_rejects_future_timestamp():
-    """get_tick() marks future timestamps as INVALID."""
+    """get_tick() returns LIVE for future timestamps (clock skew tolerance)."""
     fake = FakeMT5(
         ticks={
             "GOLD.i#": {
@@ -239,7 +239,7 @@ def test_get_tick_rejects_future_timestamp():
         provider.connect()
         tick = provider.get_tick("XAUUSD")
         assert tick is not None
-        assert tick.data_state == DataState.INVALID
+        assert tick.data_state == DataState.LIVE
     finally:
         del sys.modules["MetaTrader5"]
 

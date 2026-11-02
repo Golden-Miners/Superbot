@@ -55,6 +55,21 @@ class StoredOHLCVBar:
     data_freshness: DataFreshness = DataFreshness.HISTORICAL
 
 
+@dataclass(frozen=True)
+class StoredSignal:
+    """A single stored signal decision (signal or rejection)."""
+    symbol: str
+    broker_symbol: str
+    signal_type: str | None          # "entry_long" | "entry_short" | None (rejection)
+    entry_price: Decimal | None
+    stop_price: Decimal | None
+    depth_pct: Decimal | None
+    data_state: str                  # "live" | "stale" | "unavailable" | "invalid"
+    source: str                      # "broker_feed"
+    timestamp_utc: datetime
+    rejection_reason: str | None     # "stale_data" | "unavailable_data" | "no_signal" | None
+
+
 class MarketDataStorage:
     """Storage and replay service for live market data.
 
@@ -66,6 +81,7 @@ class MarketDataStorage:
     def __init__(self) -> None:
         self._ticks: list[StoredMarketData] = []
         self._bars: list[StoredOHLCVBar] = []
+        self._signals: list[StoredSignal] = []
 
     def store_tick(
         self,
@@ -160,6 +176,40 @@ class MarketDataStorage:
         if end is not None:
             bars = [b for b in bars if b.bar_open_utc <= end]
         return bars
+
+
+    def store_signal(
+        self,
+        symbol: str,
+        broker_symbol: str,
+        signal_type: str | None,
+        entry_price: Decimal | None,
+        stop_price: Decimal | None,
+        depth_pct: Decimal | None,
+        data_state: str,
+        source: str,
+        timestamp_utc: datetime,
+        rejection_reason: str | None,
+    ) -> None:
+        """Store a signal decision (signal or rejection) with provenance."""
+        self._signals.append(
+            StoredSignal(
+                symbol=symbol,
+                broker_symbol=broker_symbol,
+                signal_type=signal_type,
+                entry_price=entry_price,
+                stop_price=stop_price,
+                depth_pct=depth_pct,
+                data_state=data_state,
+                source=source,
+                timestamp_utc=timestamp_utc,
+                rejection_reason=rejection_reason,
+            )
+        )
+
+    def get_signal_history(self) -> list[StoredSignal]:
+        """Retrieve all stored signal decisions (signals and rejections)."""
+        return list(self._signals)
 
 
 def create_production_storage() -> MarketDataStorage:

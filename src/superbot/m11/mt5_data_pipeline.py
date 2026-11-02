@@ -7,8 +7,10 @@ Read-only: no order submission or data fabrication.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
+from superbot.contracts.ohlcv import QualityStatus
 from superbot.m11.mt5_data_provider import DataState, MT5DataProvider
 from superbot.persistence.market_data_storage import MarketDataStorage
 from superbot.strategy.shared_framework import SharedStrategyFramework
@@ -121,9 +123,63 @@ class ResearchPipeline:
         Returns list of signal dicts with symbol, signal_type, entry_price,
         stop_price, depth_pct, source. Returns empty list if no live data
         available or no signal generated.
+
+        Every decision (signal or rejection) is recorded in signal history
+        with data provenance and freshness. Signals are only generated from
+        LIVE data — STALE/UNAVAILABLE/INVALID data produces no signal.
         """
-        bars = self.fetch_and_store_bars(symbol, timeframe, count)
-        if not bars:
+        if not self.mt5_provider.is_connected():
+            self.storage.store_signal(
+                symbol=symbol,
+                broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
+                signal_type=None,
+                entry_price=None,
+                stop_price=None,
+                depth_pct=None,
+                data_state=DataState.UNAVAILABLE.value,
+                source="broker_feed",
+                timestamp_utc=datetime.now(tz=UTC),
+                rejection_reason="mt5_not_connected",
+            )
+            return []
+
+        bars = self.mt5_provider.get_ohlcv(symbol, timeframe, count)
+
+        # Convert OHLCVBar objects to tuples for trend_following_entry
+        # Each tuple: (epoch_seconds, open, high, low, close)
+        tuple_bars = []
+        for bar in bars:
+            try:
+                epoch = int(bar.bar_open_utc.timestamp())
+            except AttributeError:
+                # SimpleNamespace or dict from fake
+                epoch = int(bar["bar_open_utc"].timestamp())
+            try:
+                open_val = Decimal(str(bar.open))
+                high_val = Decimal(str(bar.high))
+                low_val = Decimal(str(bar.low))
+                close_val = Decimal(str(bar.close))
+            except AttributeError:
+                open_val = Decimal(str(bar["open"]))
+                high_val = Decimal(str(bar["high"]))
+                low_val = Decimal(str(bar["low"]))
+                close_val = Decimal(str(bar["close"]))
+            tuple_bars.append((epoch, open_val, high_val, low_val, close_val))
+
+        # Record rejection if no data available
+        if not tuple_bars:
+            self.storage.store_signal(
+                symbol=symbol,
+                broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
+                signal_type=None,
+                entry_price=None,
+                stop_price=None,
+                depth_pct=None,
+                data_state=DataState.UNAVAILABLE.value,
+                source="broker_feed",
+                timestamp_utc=datetime.now(tz=UTC),
+                rejection_reason="no_data_available",
+            )
             return []
 
         trend_spec = TrendSpec(schema_version="1.0", rule_id="trend_follow_v1", lookback_bars=5, ma_period=5)
@@ -135,9 +191,47 @@ class ResearchPipeline:
             require_bounce=True,
         )
 
-        signal = trend_following_entry(bars, trend_spec, pullback_spec)
+        signal = trend_following_entry(tuple_bars, trend_spec, pullback_spec)
         if signal is None:
+            # No signal generated from valid data — record rejection
+            # Determine data state from the bars
+            data_state = DataState.LIVE.value
+            for bar in bars:
+                try:
+                    bar_qs = bar.quality_status
+                except AttributeError:
+                    bar_qs = bar.get("quality_status")
+                if bar_qs != QualityStatus.VALID:
+                    data_state = bar_qs.value if hasattr(bar_qs, "value") else str(bar_qs)
+                    break
+            self.storage.store_signal(
+                symbol=symbol,
+                broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
+                signal_type=None,
+                entry_price=None,
+                stop_price=None,
+                depth_pct=None,
+                data_state=data_state,
+                source="broker_feed",
+                timestamp_utc=datetime.now(tz=UTC),
+                rejection_reason="no_signal",
+            )
             return []
+
+        # Record the signal
+        timestamp_utc = datetime.now(tz=UTC)
+        self.storage.store_signal(
+            symbol=symbol,
+            broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
+            signal_type=signal.signal_type,
+            entry_price=signal.entry_price,
+            stop_price=signal.stop_price,
+            depth_pct=signal.depth_pct,
+            data_state=DataState.LIVE.value,
+            source="broker_feed",
+            timestamp_utc=timestamp_utc,
+            rejection_reason=None,
+        )
 
         return [{
             "symbol": symbol,
