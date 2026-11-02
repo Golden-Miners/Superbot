@@ -154,7 +154,7 @@ def render_data_explorer(ui: Any | None = None, mt5_data_provider: Any | None = 
         u.write("No live broker data available. MT5 terminal not connected.")
 
 
-def render_research_queue(ui: Any | None = None) -> None:
+def render_research_queue(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
     """Research queue: job status, dataset/symbol/timeframe, versions, priority,
     resource use, progress, checkpoint, start/duration, pause/resume/cancel.
     All job data is synthetic/internal simulation — never live broker data."""
@@ -162,6 +162,15 @@ def render_research_queue(ui: Any | None = None) -> None:
     _inject_css(u)
     u.title("Research Queue")
     _badge(ui, source_label("synthetic_fixture"), "neutral")
+
+    mt5_connected = mt5_data_provider is not None and mt5_data_provider.is_connected()
+    if mt5_connected:
+        u.subheader("Live MT5 Symbols")
+        _badge(ui, source_label("broker_feed"), "neutral")
+        for symbol in sorted(mt5_data_provider.symbol_map.keys()):
+            tick = mt5_data_provider.get_tick(symbol)
+            if tick is not None:
+                u.write(f"{tick.symbol} ({tick.broker_symbol}): {tick.bid:.2f}/{tick.ask:.2f}")
     u.write(
         '<table class="swiss-table">'
         "<thead><tr>"
@@ -195,12 +204,18 @@ def render_research_queue(ui: Any | None = None) -> None:
     u.write("</tbody></table>")
 
 
-def render_strategy_workbench(ui: Any | None = None) -> None:
+def render_strategy_workbench(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
     """Strategy/signal workbench: family/version/parameters, rules, proposal
     source, evidence refs, schema validation, signal ID, rejection reason."""
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Strategy / Signal Workbench")
+    if mt5_data_provider is not None and mt5_data_provider.is_connected():
+        u.subheader("Live Market Symbols")
+        for symbol in sorted(mt5_data_provider.symbol_map.keys()):
+            tick = mt5_data_provider.get_tick(symbol)
+            if tick is not None:
+                u.write(f"{tick.symbol} ({tick.broker_symbol}): {tick.bid:.2f}/{tick.ask:.2f}")
     for s in STATE.strategies:
         u.write(
             f"{s['strategy_id']} | {s['family']} v{s['version']} | "
@@ -213,12 +228,18 @@ def render_strategy_workbench(ui: Any | None = None) -> None:
     u.write("AI proposals are staged separately — never presented as approved trades.")
 
 
-def render_validation_experiments(ui: Any | None = None) -> None:
+def render_validation_experiments(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
     """Validation / experiment details: walk-forward, OOS metrics, costs,
     robustness, gate states PASS/FAIL/BLOCKED/NOT RUN."""
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Validation / Experiments")
+    if mt5_data_provider is not None and mt5_data_provider.is_connected():
+        u.subheader("Live Symbols")
+        for symbol in sorted(mt5_data_provider.symbol_map.keys()):
+            tick = mt5_data_provider.get_tick(symbol)
+            if tick is not None:
+                u.write(f"{tick.symbol} ({tick.broker_symbol}): {tick.bid:.2f}/{tick.ask:.2f}")
     for exp in STATE.experiments:
         u.write(
             f"{exp['experiment_id']} | {exp['strategy_version']} | {exp['symbol']} "
@@ -230,13 +251,19 @@ def render_validation_experiments(ui: Any | None = None) -> None:
             u.write(f" ({gate['evidence_ref'] or 'no evidence'})")
 
 
-def render_portfolio_risk(ui: Any | None = None) -> None:
+def render_portfolio_risk(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
     """Portfolio / risk / internal simulation: positions, entry/exit,
     stop/partial timeline, MTM, costs, exposure, P&L, limits, drawdown,
     halt state. Labeled internal simulation — no live orders."""
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Portfolio / Risk (Internal Simulation)")
+    if mt5_data_provider is not None and mt5_data_provider.is_connected():
+        u.subheader("Live Market Symbols")
+        for symbol in sorted(mt5_data_provider.symbol_map.keys()):
+            tick = mt5_data_provider.get_tick(symbol)
+            if tick is not None:
+                u.write(f"{tick.symbol} ({tick.broker_symbol}): {tick.bid:.2f}/{tick.ask:.2f}")
     _badge(ui, source_label("synthetic_fixture"), "neutral")
     _metric_card(ui, "Exposure gross", "265.00")
     _metric_card(ui, "P&L realized", "120.00")
@@ -247,7 +274,7 @@ def render_portfolio_risk(ui: Any | None = None) -> None:
     u.write("No live orders in V1.")
 
 
-def render_audit_library(ui: Any | None = None) -> None:
+def render_audit_library(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
     """Audit / experiment library: search run ID, strategy/version,
     symbol/timeframe, date, data hash, outcome, gate, failure class, commit.
     Append-only events, evidence refs, correction linkage, version refs.
@@ -255,6 +282,12 @@ def render_audit_library(ui: Any | None = None) -> None:
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Audit / Experiment Library")
+    if mt5_data_provider is not None and mt5_data_provider.is_connected():
+        u.subheader("Live Market Symbols")
+        for symbol in sorted(mt5_data_provider.symbol_map.keys()):
+            tick = mt5_data_provider.get_tick(symbol)
+            if tick is not None:
+                u.write(f"{tick.symbol} ({tick.broker_symbol}): {tick.bid:.2f}/{tick.ask:.2f}")
     _badge(ui, source_label("synthetic_fixture"), "neutral")
     u.write(
         '<table class="swiss-table">'
@@ -282,7 +315,7 @@ def render_audit_library(ui: Any | None = None) -> None:
     u.write("Append-only events; corrections never modify originals.")
 
 
-def render_settings_profiles(ui: Any | None = None) -> None:
+def render_settings_profiles(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
     """Settings / profiles: research, internal-simulation, guarded
     demo-readiness. Value, range, source, version, actor/reason, timestamp,
     last-known-good. Secrets redacted; no live-order control."""
