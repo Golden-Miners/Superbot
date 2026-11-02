@@ -145,6 +145,69 @@ class ResearchPipeline:
 
         bars = self.mt5_provider.get_ohlcv(symbol, timeframe, count)
 
+        # Record rejection if no data available
+        if not bars:
+            self.storage.store_signal(
+                symbol=symbol,
+                broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
+                signal_type=None,
+                entry_price=None,
+                stop_price=None,
+                depth_pct=None,
+                data_state=DataState.UNAVAILABLE.value,
+                source="broker_feed",
+                timestamp_utc=datetime.now(tz=UTC),
+                rejection_reason="no_data_available",
+            )
+            return []
+
+        # Data quality gate: reject if any bar has non-VALID quality status
+        # or stale timestamp (>60 seconds old)
+        # Data quality gate: reject if any bar has non-VALID quality status
+        # STALE/UNAVAILABLE/INVALID data must not produce signals
+        data_state = DataState.LIVE.value
+        now = datetime.now(tz=UTC)
+        for bar in bars:
+            try:
+                bar_qs = bar.quality_status
+                bar_ts = bar.bar_open_utc
+            except AttributeError:
+                bar_qs = bar.get("quality_status")
+                bar_ts = bar["bar_open_utc"]
+            bar_qs_value = bar_qs.value if hasattr(bar_qs, "value") else str(bar_qs)
+            if bar_qs_value != QualityStatus.VALID.value:
+                data_state = bar_qs_value
+                self.storage.store_signal(
+                    symbol=symbol,
+                    broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
+                    signal_type=None,
+                    entry_price=None,
+                    stop_price=None,
+                    depth_pct=None,
+                    data_state=data_state,
+                    source="broker_feed",
+                    timestamp_utc=datetime.now(tz=UTC),
+                    rejection_reason="data_quality_rejected",
+                )
+                return []
+            # Check timestamp age — stale if older than 60 seconds
+            age = (now - bar_ts).total_seconds()
+            if age > 60.0:
+                data_state = DataState.STALE.value
+                self.storage.store_signal(
+                    symbol=symbol,
+                    broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
+                    signal_type=None,
+                    entry_price=None,
+                    stop_price=None,
+                    depth_pct=None,
+                    data_state=data_state,
+                    source="broker_feed",
+                    timestamp_utc=datetime.now(tz=UTC),
+                    rejection_reason="data_quality_rejected",
+                )
+                return []
+
         # Convert OHLCVBar objects to tuples for trend_following_entry
         # Each tuple: (epoch_seconds, open, high, low, close)
         tuple_bars = []
@@ -166,22 +229,6 @@ class ResearchPipeline:
                 close_val = Decimal(str(bar["close"]))
             tuple_bars.append((epoch, open_val, high_val, low_val, close_val))
 
-        # Record rejection if no data available
-        if not tuple_bars:
-            self.storage.store_signal(
-                symbol=symbol,
-                broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
-                signal_type=None,
-                entry_price=None,
-                stop_price=None,
-                depth_pct=None,
-                data_state=DataState.UNAVAILABLE.value,
-                source="broker_feed",
-                timestamp_utc=datetime.now(tz=UTC),
-                rejection_reason="no_data_available",
-            )
-            return []
-
         trend_spec = TrendSpec(schema_version="1.0", rule_id="trend_follow_v1", lookback_bars=5, ma_period=5)
         pullback_spec = PullbackSpec(
             schema_version="1.0",
@@ -194,16 +241,6 @@ class ResearchPipeline:
         signal = trend_following_entry(tuple_bars, trend_spec, pullback_spec)
         if signal is None:
             # No signal generated from valid data — record rejection
-            # Determine data state from the bars
-            data_state = DataState.LIVE.value
-            for bar in bars:
-                try:
-                    bar_qs = bar.quality_status
-                except AttributeError:
-                    bar_qs = bar.get("quality_status")
-                if bar_qs != QualityStatus.VALID:
-                    data_state = bar_qs.value if hasattr(bar_qs, "value") else str(bar_qs)
-                    break
             self.storage.store_signal(
                 symbol=symbol,
                 broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
