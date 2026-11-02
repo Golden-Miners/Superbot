@@ -236,3 +236,42 @@ def test_chart_annotations_state_source():
     annotations = fig.layout.annotations or []
     texts = [str(a.text) for a in annotations]
     assert any("synthetic" in t.lower() for t in texts)
+
+
+# --- UI rendering robustness (Streamlit rerun safety) ---
+
+
+def test_badge_with_none_ui_does_not_crash():
+    """_badge() must resolve ui=None to streamlit before calling .write()."""
+    m11_ui._badge(None, "test text", "neutral")  # should not raise
+
+
+def test_metric_card_with_none_ui_does_not_crash():
+    """_metric_card() must resolve ui=None to streamlit before calling .write()."""
+    m11_ui._metric_card(None, "label", "1.23")  # should not raise
+
+
+def test_section_header_with_none_ui_does_not_crash():
+    """_section_header() must resolve ui=None to streamlit before calling .write()."""
+    m11_ui._section_header(None, "section header")  # should not raise
+
+
+def test_badge_from_state_with_none_ui_does_not_crash():
+    """_badge_from_state() must resolve ui=None to streamlit before calling .write()."""
+    m11_ui._badge_from_state(None, "healthy")  # should not raise
+
+
+def test_all_surfaces_work_with_none_ui():
+    """All surface renderers must work when called with ui=None (as Streamlit
+    does on reruns)."""
+    for renderer in (
+        m11_ui.render_overview,
+        m11_ui.render_data_explorer,
+        m11_ui.render_research_queue,
+        m11_ui.render_strategy_workbench,
+        m11_ui.render_validation_experiments,
+        m11_ui.render_portfolio_risk,
+        m11_ui.render_audit_library,
+        m11_ui.render_settings_profiles,
+    ):
+        renderer(ui=None)  # should not raise AttributeError: 'NoneType' object has no attribute 'write'

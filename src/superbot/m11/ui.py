@@ -48,13 +48,15 @@ def _inject_css(ui: Any) -> None:
 
 def _badge(ui: Any, text: str, variant: str = "neutral") -> None:
     """Render a Swiss-style badge span."""
+    u = _get_ui(ui)
     css_class = f"swiss-badge--{variant}"
-    ui.write(f'<span class="swiss-badge {css_class}">{text}</span>')
+    u.write(f'<span class="swiss-badge {css_class}">{text}</span>')
 
 
 def _metric_card(ui: Any, label: str, value: str) -> None:
     """Render a Swiss-style metric card."""
-    ui.write(
+    u = _get_ui(ui)
+    u.write(
         f'<div class="swiss-metric-card">'
         f'<div class="swiss-metric-label">{label}</div>'
         f'<div class="swiss-metric-value">{value}</div>'
@@ -64,7 +66,8 @@ def _metric_card(ui: Any, label: str, value: str) -> None:
 
 def _section_header(ui: Any, text: str) -> None:
     """Render a Swiss-style section header."""
-    ui.write(f'<h2 class="swiss-section-header">{text}</h2>')
+    u = _get_ui(ui)
+    u.write(f'<h2 class="swiss-section-header">{text}</h2>')
 
 
 def _badge_from_state(ui: Any, state: str) -> None:
