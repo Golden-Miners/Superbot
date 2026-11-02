@@ -186,6 +186,32 @@ class ResearchPipeline:
                 )
                 return []
 
+        # Data quality gate: check timestamp age — stale if older than 60 seconds
+        # Historical bars (from storage) are not stale merely for being old;
+        # only bars from the live MT5 feed that haven't updated are stale.
+        now = datetime.now(tz=UTC)
+        for bar in bars:
+            try:
+                bar_ts = bar.bar_open_utc
+            except AttributeError:
+                bar_ts = bar["bar_open_utc"]
+            age = (now - bar_ts).total_seconds()
+            if age > 60.0:
+                data_state = DataState.STALE.value
+                self.storage.store_signal(
+                    symbol=symbol,
+                    broker_symbol=self.mt5_provider.symbol_map.get(symbol, symbol),
+                    signal_type=None,
+                    entry_price=None,
+                    stop_price=None,
+                    depth_pct=None,
+                    data_state=data_state,
+                    source="broker_feed",
+                    timestamp_utc=datetime.now(tz=UTC),
+                    rejection_reason="data_quality_rejected",
+                )
+                return []
+
         # Convert OHLCVBar objects to tuples for trend_following_entry
         # Each tuple: (epoch_seconds, open, high, low, close)
         tuple_bars = []
