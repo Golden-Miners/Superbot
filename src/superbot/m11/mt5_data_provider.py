@@ -177,12 +177,15 @@ class MT5DataProvider:
             data_state = DataState.UNAVAILABLE
         else:
             age = (datetime.now(tz=UTC) - timestamp_utc).total_seconds()
-            if age > 60.0:
+            if abs(age) <= 60.0:
+                # Within 60 seconds → live (accounts for minor clock skew)
+                data_state = DataState.LIVE
+            elif age > 60.0:
+                # Older than 60 seconds → stale
                 data_state = DataState.STALE
-            elif age < -60.0:
-                # Future timestamp (more than 60 seconds ahead) - invalid
-                data_state = DataState.INVALID
             else:
+                # Future timestamp (>60 seconds ahead) → clock skew, treat as live
+                # Broker terminal clock may be ahead of local system clock
                 data_state = DataState.LIVE
 
         return TickData(
@@ -196,9 +199,6 @@ class MT5DataProvider:
             source="broker_feed",
             data_state=data_state,
         )
-
-        tick = self._build_tick(symbol, broker_symbol, tick_data)
-        return tick
 
     def get_current_price(self, symbol: str) -> TickData | None:
         """Return current price for a symbol from the live feed.
@@ -307,11 +307,14 @@ class MT5DataProvider:
             quality_status = QualityStatus.INVALID
         else:
             age = (datetime.now(tz=UTC) - timestamp_utc).total_seconds()
-            if age > 60.0:
+            if abs(age) <= 60.0:
+                # Within 60 seconds → valid (accounts for minor clock skew)
+                quality_status = QualityStatus.VALID
+            elif age > 60.0:
+                # Older than 60 seconds → stale (but still valid data)
                 quality_status = QualityStatus.STALE
-            elif age < -60.0:
-                quality_status = QualityStatus.INVALID
             else:
+                # Future timestamp (>60 seconds ahead) → clock skew, treat as live
                 quality_status = QualityStatus.VALID
 
         return OHLCVBar(
