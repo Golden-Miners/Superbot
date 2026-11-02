@@ -163,11 +163,6 @@ class MT5DataProvider:
         last = tick_data.get("last")
         volume = tick_data.get("volume")
 
-        bid = tick_data.get("bid")
-        ask = tick_data.get("ask")
-        last = tick_data.get("last")
-        volume = tick_data.get("volume")
-
         timestamp_utc = self._timestamp_from_raw(tick_raw_time=tick_data.get("time"))
         if timestamp_utc is None:
             # Missing timestamp → return tick with UNAVAILABLE state
@@ -181,12 +176,13 @@ class MT5DataProvider:
                 # Within 60 seconds → live (accounts for minor clock skew)
                 data_state = DataState.LIVE
             elif age > 60.0:
-                # Older than 60 seconds → stale
+                # Older than 60 seconds → stale (historical bar data, still valid)
                 data_state = DataState.STALE
             else:
-                # Future timestamp (>60 seconds ahead) → clock skew, treat as live
-                # Broker terminal clock may be ahead of local system clock
-                data_state = DataState.LIVE
+                # Future timestamp (>60 seconds ahead) → INVALID
+                # Broker terminal clock may be ahead of local system clock,
+                # but future timestamps are not valid market data.
+                data_state = DataState.INVALID
 
         return TickData(
             symbol=symbol,
@@ -297,25 +293,18 @@ class MT5DataProvider:
             return None
         if open_val <= 0 or high <= 0 or low <= 0 or close <= 0:
             return None
+        # OHLC consistency: low <= open <= high, low <= close <= high
+        if not (low <= open_val <= high):
+            return None
+        if not (low <= close <= high):
+            return None
 
         timestamp_utc = self._timestamp_from_raw(tick_raw_time=time_val)
         if timestamp_utc is None:
             return None
 
-        # Determine data state
-        if open_val <= 0 or close is None or close <= 0:
-            quality_status = QualityStatus.INVALID
-        else:
-            age = (datetime.now(tz=UTC) - timestamp_utc).total_seconds()
-            if abs(age) <= 60.0:
-                # Within 60 seconds → valid (accounts for minor clock skew)
-                quality_status = QualityStatus.VALID
-            elif age > 60.0:
-                # Older than 60 seconds → stale (but still valid data)
-                quality_status = QualityStatus.STALE
-            else:
-                # Future timestamp (>60 seconds ahead) → clock skew, treat as live
-                quality_status = QualityStatus.VALID
+        # Historical bars are valid regardless of age — only validate OHLC values
+        quality_status = QualityStatus.VALID
 
         return OHLCVBar(
             schema_version="1.0",

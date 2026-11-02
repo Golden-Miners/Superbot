@@ -51,6 +51,15 @@ class FakeMT5:
             return None
         return type("Tick", (), info)()
 
+    def copy_rates_from_pos(self, symbol, timeframe, start, count):
+        return self._ohlcv_bars if hasattr(self, "_ohlcv_bars") else []
+
+    # MT5 timeframe constants
+    TIMEFRAME_M5 = 1
+    TIMEFRAME_M15 = 2
+    TIMEFRAME_H1 = 3
+    TIMEFRAME_H4 = 4
+
 
 # --- RED tests ---
 
@@ -217,7 +226,7 @@ def test_data_quality_gate_rejects_duplicate_bars():
 
 
 def test_get_tick_rejects_future_timestamp():
-    """get_tick() returns LIVE for future timestamps (clock skew tolerance)."""
+    """get_tick() returns INVALID for future timestamps (>60s ahead)."""
     fake = FakeMT5(
         ticks={
             "GOLD.i#": {
@@ -239,7 +248,95 @@ def test_get_tick_rejects_future_timestamp():
         provider.connect()
         tick = provider.get_tick("XAUUSD")
         assert tick is not None
+        assert tick.data_state == DataState.INVALID
+    finally:
+        del sys.modules["MetaTrader5"]
+
+
+def test_get_tick_live_timestamp():
+    """get_tick() returns LIVE for recent timestamps (within 60s)."""
+    fake = FakeMT5(
+        ticks={
+            "GOLD.i#": {
+                "bid": 3875.75,
+                "ask": 3875.99,
+                "last": 3875.87,
+                "volume": 1.0,
+                "time": int(datetime.now(tz=UTC).timestamp()),
+            }
+        }
+    )
+    import sys
+
+    sys.modules["MetaTrader5"] = fake
+    try:
+        provider = MT5DataProvider({"XAUUSD": "GOLD.i#"})
+        provider.connect()
+        tick = provider.get_tick("XAUUSD")
+        assert tick is not None
         assert tick.data_state == DataState.LIVE
+    finally:
+        del sys.modules["MetaTrader5"]
+
+
+def test_get_ohlcv_keeps_historical_bars():
+    """get_ohlcv() does NOT filter out bars older than 60s.
+    Historical bars with valid OHLC data should be returned."""
+    fake = FakeMT5(
+        ticks={
+            "BTCUSD#": {
+                "bid": 77803.35,
+                "ask": 77818.35,
+                "last": 77810.0,
+                "volume": 0.5,
+                "time": int(datetime.now(tz=UTC).timestamp()),
+            }
+        }
+    )
+    import sys
+
+    sys.modules["MetaTrader5"] = fake
+    try:
+        provider = MT5DataProvider({"BTCUSD": "BTCUSD#"})
+        provider.connect()
+
+        # Add historical bars (older than 60s)
+        old_time = datetime.now(tz=UTC) - timedelta(hours=2)
+        # Round to nearest M5 boundary (seconds divisible by 300)
+        old_ts = int(old_time.timestamp())
+        old_ts = old_ts - (old_ts % 300)
+        old_time = datetime.fromtimestamp(old_ts, tz=UTC)
+        bars = []
+        for i in range(5):
+            bars.append(
+                {
+                    "open": 77800 + i,
+                    "high": 78000 + i,
+                    "low": 77700 + i,
+                    "close": 77950 + i,
+                    "tick_volume": 1.0,
+                    "time": old_ts + i * 300,
+                }
+            )
+
+        # Patch the MT5 module's copy_rates_from_pos to return our stale bars
+        fake._ohlcv_bars = bars
+
+        # Monkey-patch copy_rates_from_pos
+        def fake_copy_rates(symbol, timeframe, start, count):
+            return fake._ohlcv_bars
+
+        fake.copy_rates_from_pos = fake_copy_rates
+
+        bars_out = provider.get_ohlcv("BTCUSD", "M5", count=10)
+        assert len(bars_out) == 5, f"Expected 5 historical bars, got {len(bars_out)}"
+
+        for bar in bars_out:
+            assert bar.quality_status == QualityStatus.VALID, (
+                f"Expected VALID quality, got {bar.quality_status}"
+            )
+
+        provider.disconnect()
     finally:
         del sys.modules["MetaTrader5"]
 
