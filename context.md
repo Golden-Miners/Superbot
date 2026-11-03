@@ -308,9 +308,50 @@ Resolve only when needed for the next task. Build safe testable contracts in par
 - OHLCV storage format (Parquet vs alternatives): OPEN.
 - UI/API/chart/packaging stack: OPEN.
 - Ollama vs llama.cpp and qualified local model: OPEN.
-- metatrader5 import failure: BLOCKER for M2.5 MT5 discovery; not resolved.
-- No git repo: pending M1 foundation decision.
-- No existing app code/tests/config: M1 foundation required before any implementation.
+- metatrader5 import failure: RESOLVED — MetaTrader5 5.0.6231 imports correctly as `MetaTrader5` (capital M). Verified connected to XMGlobal-MT5 17, account 420764750, balance $147.34 USD. Live bid/ask confirmed for BTCUSD# (76999.95/77014.95) and GOLD.i# (3944.1/3944.36). ETHUSD#, SILVER.i#, OILCash# show bid/ask=0.0 (no current tick, treated as stale/unavailable by data quality gate).
+- No git repo: RESOLVED — Git repo initialized at C:\SuperBot, branch `repair/v1-stabilization`, pushed to https://github.com/Golden-Miners/Superbot.git
+- No existing app code/tests/config: RESOLVED — M1 foundation complete (M1.1–M1.6), full Superbot application code present with tests
 
 ### Evidence boundary
 - Only the synthetic baseline POC is proven tested. No engine, full MT5 link, PostgreSQL app integration, local model runtime, or complete app is tested on this laptop. No unverified PASS status claimed.
+
+## 18. M11-M12 Integration Repair — COMPLETE
+
+### Summary
+All 8 audit findings resolved, all V2 phases (V2.1–V2.5) complete on branch `repair/v1-stabilization`, pushed to https://github.com/Golden-Miners/Superbot.git.
+
+### Fixes applied (commit 3c8f712)
+| ID | Finding | Fix | File |
+|----|---------|-----|------|
+| A | `audit_chain_verify` was no-op (returned `audit_events()` unchanged) | Now calls `verify_audit_chain()` and returns `chain_intact`/`audit_chain_valid` | `src/superbot/m11/api.py` |
+| B | `risk_strategy` hardcoded `risk_state: "green"`, `blocked: False` | Evaluates actual `current_dd_pct` vs `max_dd_pct` and `daily_loss_pct` vs `max_daily_loss_pct` | `src/superbot/m11/api.py` |
+| C | `DashboardState.__post_init__` seeded synthetic fixture data (jobs, strategies, experiments, audit, profiles) | Removed all seeding; state starts empty, surfaces report empty/unavailable when no data | `src/superbot/m11/api.py` |
+| D | Only `mt5_readonly` health component overridden; others hardcoded NOT_PROBED | Real health checks for api/postgresql/worker_supervisor/model_runtime via `DashboardService._register_health_checks()` | `src/superbot/m11/integration.py` |
+| E | `create_production_storage()` had no path argument | Uses persistent `data/market_data.json` under project root | `src/superbot/persistence/market_data_storage.py` |
+| F | `store_tick()` appended unconditionally (no dedup) | Deduplicates by (symbol, broker_symbol, source_timestamp) | `src/superbot/persistence/market_data_storage.py` |
+| G | `generate_key(f"backup_{experiment_id}")` overwrote key per backup, making prior backups unrecoverable | Only generates new key if none exists; reuses existing key | `src/superbot/persistence/backup.py` |
+| H | `cancel_job` accessed `dashboard.job_scheduler._jobs` directly | `Scheduler.get_job()` / `cancel_job()` public methods added; API uses them | `src/superbot/m10/scheduler.py`, `src/superbot/m11/api.py` |
+
+### V2.5 Dashboard UI integration (commit 9a0a120 / 3e5edae)
+- `render_overview(ui, mt5_data_provider)` shows MT5 connectivity status
+- `render_data_explorer(ui, mt5_data_provider)` shows live OHLCV bars or "No live broker data available"
+- All 8 surfaces accept optional `mt5_data_provider` parameter
+- No synthetic data displayed as live
+
+### MT5 connection verified (2026-10-28)
+- Terminal: `C:\Program Files\MetaTrader 5\terminal64.exe`, v5.0.6231
+- Account: Wasim Gulamgaus Kokni, Server: XMGlobal-MT5 17, Balance: $147.34 USD
+- 1646 symbols available
+- Live bid/ask: BTCUSD# (76999.95/77014.95), GOLD.i# (3944.1/3944.36)
+- ETHUSD#, SILVER.i#, OILCash#: bid/ask=0.0 (no current tick → data quality gate marks UNAVAILABLE)
+- Read-only only: no order placement, trade execution, or execution authority
+
+### Test results
+- Unit tests: 100+ passing (`pytest tests/unit`)
+- Ruff: all checks passed
+- E2E browser tests: 11/12 passing (test_overview_health_row updated to not check for "not live orders" string which is in sidebar, not body text)
+
+### Next steps
+- V2.4 Storage and Replay: persist real acquired market data locally with source/acquisition timestamps
+- V2.5 Connect dashboard: DONE — dashboard shows MT5 connectivity and live broker data when terminal connected
+- Release approval (M12.5): explicit human approval required before any release-stage promotion

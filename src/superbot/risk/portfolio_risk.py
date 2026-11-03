@@ -106,6 +106,10 @@ class PortfolioRiskService:
         """Get a registered strategy by name."""
         return self._strategies.get(name)
 
+    def get_strategies(self) -> dict[str, StrategyRecord]:
+        """Return all registered strategies as a read-only dict copy."""
+        return dict(self._strategies)
+
     def create_group(
         self,
         name: str,

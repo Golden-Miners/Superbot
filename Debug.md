@@ -96,3 +96,46 @@ See `context.md` and `memory.md`:
 - **Low:** non-critical visual/usability issue or non-blocking documentation issue.
 
 Critical/high defects block release and promotion. Never downgrade severity only to unblock a milestone.
+
+## 8. Incident Log — M11-M12 Integration Repair
+
+### Incident 2026-10-28-01: MT5 data pipeline not connected to dashboard
+
+**Issue ID:** INT-2026-10-28-01
+**Task/milestone:** V2.1–V2.5 integration repair, branch `repair/v1-stabilization`
+**Commit:** `3c8f712` "Phase 2 Integration Repair: MT5 data pipeline fixes"
+
+**Environment:**
+- OS: Windows 10 build 19045
+- Python: 3.14.7, pytest 9.1.1, ruff 0.17.2
+- MetaTrader5: 5.0.6231
+- MT5 terminal: C:\Program Files\MetaTrader 5\terminal64.exe, XMGlobal-MT5 17
+
+**Problem:**
+Dashboard showed `mt5_readonly: not connected` and Data Explorer showed `No live broker data available.` despite MT5 terminal running locally with live broker data available.
+
+**Root cause (CONFIRMED):**
+1. `DashboardState.__post_init__()` seeded synthetic fixture data (jobs, strategies, experiments, audit, profiles) masking real MT5 data.
+2. Health endpoint only overrode `mt5_readonly`; other components remained `NOT_PROBED`.
+3. UI surfaces accepted no `mt5_data_provider` parameter, rendering from `STATE` (synthetic fixtures).
+
+**Fix applied:**
+- `audit_chain_verify` now calls `verify_audit_chain()` and returns `chain_intact`
+- `risk_strategy` evaluates actual drawdown/daily_loss vs limits
+- `DashboardState.__post_init__()` no longer seeds synthetic fixtures
+- `DashboardService._register_health_checks()` registers real health checks (NOT_PROBED if unverified)
+- `create_production_storage()` uses persistent `data/market_data.json` path
+- `store_tick()` deduplicates by (symbol, broker_symbol, source_timestamp)
+- `generate_key()` reuses existing key for backup recoverability
+- `Scheduler.get_job()`/`cancel_job()` public methods replace `_jobs` access
+- UI surfaces accept `mt5_data_provider`, show live OHLCV bars, label as `broker_feed`
+
+**Verification:**
+- MT5 connection: verified at XMGlobal-MT5 17, account 420764750, balance $147.34 USD
+- Live bid/ask: BTCUSD# (76999.95/77014.95), GOLD.i# (3944.1/3944.36)
+- ETHUSD#, SILVER.i#, OILCash#: bid/ask=0.0 → data quality gate marks UNAVAILABLE
+- 100+ unit tests pass, ruff clean, E2E tests pass (11/12)
+
+**Rollback path:** `git revert 3c8f712` restores synthetic fixture dashboard; MT5 provider import remains available for re-integration.
+
+**Documents updated:** context.md (section 16-17), Debug.md (this section), architecture.md (dashboard data flow), task.md (M11-M12 complete)

@@ -144,7 +144,14 @@ class BackupService:
         clean = exclude_secrets(dict(payload))
         plaintext = dumps(clean, sort_keys=True).encode("utf-8")
         checksum = hash_payload(plaintext)
-        key = self.key_manager.generate_key(f"backup_{experiment_id}")
+        # Only generate a new key if one doesn't already exist for this
+        # experiment. Reusing the same key ensures older backups remain
+        # restorable when the same experiment is backed up again.
+        key_name = f"backup_{experiment_id}"
+        try:
+            key = self.key_manager.load_key(key_name)
+        except KeyError:
+            key = self.key_manager.generate_key(key_name)
         fernet = Fernet(key)
         encrypted = fernet.encrypt(plaintext)
         backup_id = sha256(

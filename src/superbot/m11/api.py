@@ -16,15 +16,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
-from superbot.m10.scheduler import Job
 from superbot.m11.auth import Session, SessionStore
 from superbot.m11.integration import DashboardService
+from superbot.m11.mt5_data_provider import MT5DataProvider
+from superbot.persistence.audit_linkage import verify_audit_chain
 from superbot.supervisor.health import HealthStatus
 
 
@@ -99,278 +101,11 @@ class DashboardState:
     profiles: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not self.health_components:
-            self._seed_health()
-        if not self.jobs:
-            self._seed_jobs()
-        if not self.strategies:
-            self._seed_strategies()
-        if not self.experiments:
-            self._seed_experiments()
-        if not self.audit_events:
-            self._seed_audit()
-        if not self.profiles:
-            self._seed_profiles()
-
-    # -- seeding -----------------------------------------------------------
-
-    def _seed_health(self) -> None:
-        # Health components start as NOT_PROBED — no actual probes have been
-        # run yet. Claiming HEALTHY without probing would be misleading.
-        # Real probes should be registered via HealthRegistry and their
-        # results reflected here before reporting HEALTHY/DEGRADED/BLOCKED.
-        self.health_components = {
-            "api": HealthComponent("api", HealthStatus.NOT_PROBED, "not probed"),
-            "postgresql": HealthComponent(
-                "postgresql", HealthStatus.NOT_PROBED, "not probed"
-            ),
-            "worker_supervisor": HealthComponent(
-                "worker_supervisor", HealthStatus.NOT_PROBED, "not probed"
-            ),
-            "model_runtime": HealthComponent(
-                "model_runtime", HealthStatus.NOT_PROBED, "not probed"
-            ),
-            "mt5_readonly": HealthComponent(
-                "mt5_readonly", HealthStatus.NOT_PROBED, "not probed"
-            ),
-        }
-
-    def _seed_jobs(self) -> None:
-        now = _utc_now()
-        self.jobs = [
-            {
-                "job_id": "job-1",
-                "status": JobStatus.RUNNING,
-                "dataset": "XAUUSD_M5_2024",
-                "symbol": "XAUUSD",
-                "timeframe": "M5",
-                "strategy_version": "trend_following.v3",
-                "config_version": "cfg-101",
-                "priority": "high",
-                "resource_use": {"cpu_pct": 12.5, "mem_mb": 256},
-                "progress": 0.42,
-                "checkpoint": None,
-                "started_at_utc": now,
-                "duration_seconds": 3600,
-                "pause_available": True,
-                "resume_available": True,
-                "cancel_available": True,
-                "checkpointed": False,
-                "duplicate_of": None,
-                "blocked_reason": None,
-            },
-            {
-                "job_id": "job-2",
-                "status": JobStatus.BLOCKED,
-                "dataset": "XAGUSD_M15_2024",
-                "symbol": "XAGUSD",
-                "timeframe": "M15",
-                "strategy_version": "structure_liquidity.v1",
-                "config_version": "cfg-102",
-                "priority": "medium",
-                "resource_use": {"cpu_pct": 0.0, "mem_mb": 0},
-                "progress": 0.0,
-                "checkpoint": None,
-                "started_at_utc": None,
-                "duration_seconds": 0,
-                "pause_available": False,
-                "resume_available": False,
-                "cancel_available": True,
-                "checkpointed": False,
-                "duplicate_of": None,
-                "blocked_reason": "unverified symbol spec",
-            },
-            {
-                "job_id": "job-3",
-                "status": JobStatus.DEFERRED,
-                "dataset": "BTCUSD_H1_2024",
-                "symbol": "BTCUSD",
-                "timeframe": "H1",
-                "strategy_version": "statistical_baseline.v2",
-                "config_version": "cfg-103",
-                "priority": "low",
-                "resource_use": {"cpu_pct": 0.0, "mem_mb": 0},
-                "progress": 0.0,
-                "checkpoint": None,
-                "started_at_utc": None,
-                "duration_seconds": 0,
-                "pause_available": False,
-                "resume_available": False,
-                "cancel_available": False,
-                "checkpointed": False,
-                "duplicate_of": "job-1",
-                "blocked_reason": "duplicate overlap with job-1",
-            },
-        ]
-
-    def _seed_strategies(self) -> None:
-        self.strategies = [
-            {
-                "strategy_id": "strategy-1",
-                "family": "trend_following",
-                "version": "v3",
-                "parameters": {"fast_window": 10, "slow_window": 30},
-                "lifecycle": Lifecycle.INTERNAL_SIMULATION,
-                "proposal_source": ProposalSource.DETERMINISTIC,
-                "schema_valid": True,
-                "rejection_reason": None,
-                "signal_id": "sig-abc-123",
-                "evidence_refs": ["evidence/backtest-2024.json"],
-            },
-            {
-                "strategy_id": "strategy-ai-1",
-                "family": "ai_proposal",
-                "version": "v1",
-                "parameters": {"threshold": 0.8},
-                "lifecycle": Lifecycle.BLOCKED,
-                "proposal_source": ProposalSource.AI,
-                "schema_valid": False,
-                "rejection_reason": "AI proposal failed schema validation: missing entry rule",
-                "signal_id": None,
-                "evidence_refs": [],
-            },
-            {
-                "strategy_id": "strategy-2",
-                "family": "structure_liquidity",
-                "version": "v1",
-                "parameters": {"lookback": 50},
-                "lifecycle": Lifecycle.SHADOW,
-                "proposal_source": ProposalSource.DETERMINISTIC,
-                "schema_valid": True,
-                "rejection_reason": None,
-                "signal_id": "sig-def-456",
-                "evidence_refs": ["evidence/shadow-run-1.json"],
-            },
-        ]
-
-    def _seed_experiments(self) -> None:
-        self.experiments = [
-            {
-                "experiment_id": "exp-1",
-                "strategy_version": "trend_following.v3",
-                "symbol": "XAUUSD",
-                "timeframe": "M5",
-                "date_utc": "2024-01-15",
-                "data_hash": "sha256:abc123",
-                "outcome": "passed",
-                "gates": [
-                    {
-                        "name": "walk_forward",
-                        "state": GateState.PASS,
-                        "timestamp_utc": "2024-01-15T10:00:00+00:00",
-                        "config_ref": "cfg-101",
-                        "evidence_ref": "evidence/wf-1.json",
-                    },
-                    {
-                        "name": "oos_metrics",
-                        "state": GateState.PASS,
-                        "timestamp_utc": "2024-01-15T10:05:00+00:00",
-                        "config_ref": "cfg-101",
-                        "evidence_ref": "evidence/oos-1.json",
-                    },
-                    {
-                        "name": "parameter_robustness",
-                        "state": GateState.BLOCKED,
-                        "timestamp_utc": "2024-01-15T10:10:00+00:00",
-                        "config_ref": "cfg-101",
-                        "evidence_ref": "evidence/robust-1.json",
-                    },
-                ],
-            },
-            {
-                "experiment_id": "exp-2",
-                "strategy_version": "structure_liquidity.v1",
-                "symbol": "XAGUSD",
-                "timeframe": "M15",
-                "date_utc": "2024-01-16",
-                "data_hash": "sha256:def456",
-                "outcome": "failed",
-                "gates": [
-                    {
-                        "name": "walk_forward",
-                        "state": GateState.FAIL,
-                        "timestamp_utc": "2024-01-16T09:00:00+00:00",
-                        "config_ref": "cfg-102",
-                        "evidence_ref": "evidence/wf-2.json",
-                    },
-                    {
-                        "name": "leakage",
-                        "state": GateState.NOT_RUN,
-                        "timestamp_utc": "2024-01-16T09:00:00+00:00",
-                        "config_ref": "cfg-102",
-                        "evidence_ref": None,
-                    },
-                ],
-            },
-        ]
-
-    def _seed_audit(self) -> None:
-        self.audit_events = [
-            {
-                "event_id": "evt-001",
-                "run_id": "run-1",
-                "strategy_version": "trend_following.v3",
-                "symbol": "XAUUSD",
-                "timeframe": "M5",
-                "date_utc": "2024-01-15",
-                "data_hash": "sha256:abc123",
-                "outcome": "passed",
-                "gate": "walk_forward",
-                "failure_class": None,
-                "commit": "a1b2c3d",
-            },
-            {
-                "event_id": "evt-002",
-                "run_id": "run-1",
-                "strategy_version": "structure_liquidity.v1",
-                "symbol": "XAGUSD",
-                "timeframe": "M15",
-                "date_utc": "2024-01-16",
-                "data_hash": "sha256:def456",
-                "outcome": "failed",
-                "gate": "walk_forward",
-                "failure_class": "oos_breach",
-                "commit": "a1b2c3d",
-            },
-        ]
-
-    def _seed_profiles(self) -> None:
-        now = _utc_now()
-        self.profiles = {
-            "research": {
-                "value": "enabled",
-                "validated_range": ["enabled", "disabled"],
-                "source": "config.yaml",
-                "version": "1",
-                "actor": "owner",
-                "reason": "initial setup",
-                "timestamp_utc": now,
-                "last_known_good": "1",
-                "secret_redacted": True,
-            },
-            "internal_simulation": {
-                "value": "enabled",
-                "validated_range": ["enabled", "disabled"],
-                "source": "config.yaml",
-                "version": "1",
-                "actor": "owner",
-                "reason": "initial setup",
-                "timestamp_utc": now,
-                "last_known_good": "1",
-                "secret_redacted": True,
-            },
-            "demo_readiness": {
-                "value": "guarded",
-                "validated_range": ["guarded", "disabled"],
-                "source": "config.yaml",
-                "version": "1",
-                "actor": "owner",
-                "reason": "future stage gated",
-                "timestamp_utc": now,
-                "last_known_good": "1",
-                "secret_redacted": True,
-            },
-        }
+        # Start empty — no synthetic fixture data is seeded into production state.
+        # All surfaces must source data from real services (health registry, job
+        # scheduler, strategy framework, experiment registry, MT5 provider) or
+        # report NOT_AVAILABLE when no data is available.
+        pass
 
 
 # Module-level singleton state (deterministic, backend-driven).
@@ -435,21 +170,36 @@ def _overall_status(components: dict[str, HealthComponent]) -> str:
 def create_app(
     session_store: SessionStore | None = None,
     dashboard_service: DashboardService | None = None,
+    mt5_data_provider: MT5DataProvider | None = None,
 ) -> FastAPI:
     store = session_store or SessionStore()
     dashboard = dashboard_service or DashboardService()
+    mt5 = mt5_data_provider or MT5DataProvider()
     app = FastAPI(
         title="Superbot Dashboard API",
         version="0.1.0",
         servers=[{"url": "http://127.0.0.1:8000", "description": "localhost only"}],
     )
+    app.state.mt5_provider = mt5
 
     # --- Overview / health ------------------------------------------------
 
     @app.get("/health")
     def health(request: Request) -> dict[str, Any]:
         _authorize(request, store, "read_health")
-        return dashboard.get_health()
+        health_data = dashboard.get_health()
+        # Report MT5 connectivity status from the live provider
+        if mt5.is_connected():
+            health_data["components"]["mt5_readonly"] = {
+                "status": "healthy",
+                "message": "MT5 terminal connected — read-only",
+            }
+        else:
+            health_data["components"]["mt5_readonly"] = {
+                "status": "blocked",
+                "message": "MT5 terminal not connected",
+            }
+        return health_data
 
     # --- Data explorer ----------------------------------------------------
 
@@ -458,24 +208,78 @@ def create_app(
         request: Request, symbol: str, timeframe: str
     ) -> dict[str, Any]:
         _authorize(request, store, "read_data_explorer")
-        return {
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "source": DataSource.SYNTHETIC_FIXTURE,
-            "label": "synthetic fixture — not live broker data",
-            "live": False,
-            "freshness": "2024-01-15T10:00:00+00:00",
-            "coverage": "M5 bars available",
-            "timestamp_convention": "utc",
-            "data_quality": {
-                "gaps": 0,
-                "duplicates": 0,
-                "suspicious_values": 0,
-                "stale_feed": False,
-                "source_disagreement": False,
-                "unverified_specs": False,
-            },
-        }
+        # Return live broker data from MT5 provider (closure variable, not
+        # re-read from app.state which may not exist in all deployment modes)
+        bars = mt5.get_ohlcv(symbol, timeframe, count=100) if mt5 else []
+        tick = mt5.get_tick(symbol) if mt5 else None
+
+        if bars:
+            latest = bars[0]
+            return {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "source": DataSource.BROKER_FEED,
+                "label": "broker feed — read-only, not live orders",
+                "live": True,
+                "freshness": latest.bar_open_utc.isoformat(),
+                "coverage": f"{timeframe} bars available",
+                "timestamp_convention": "utc",
+                "data_quality": {
+                    "gaps": 0,
+                    "duplicates": 0,
+                    "suspicious_values": 0,
+                    "stale_feed": latest.quality_status == "stale",
+                    "source_disagreement": False,
+                    "unverified_specs": False,
+                },
+                "open": str(latest.open),
+                "high": str(latest.high),
+                "low": str(latest.low),
+                "close": str(latest.close),
+                "volume": str(latest.volume) if latest.volume else None,
+            }
+        elif tick:
+            return {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "source": DataSource.BROKER_FEED,
+                "label": "broker feed — read-only, not live orders",
+                "live": tick.data_state.value == "live",
+                "freshness": tick.timestamp_utc.isoformat(),
+                "coverage": "tick data available",
+                "timestamp_convention": "utc",
+                "data_quality": {
+                    "gaps": 0,
+                    "duplicates": 0,
+                    "suspicious_values": 0,
+                    "stale_feed": tick.data_state.value == "stale",
+                    "source_disagreement": False,
+                    "unverified_specs": False,
+                },
+                "bid": tick.bid,
+                "ask": tick.ask,
+                "last": tick.last,
+                "volume": tick.volume,
+            }
+        else:
+            return {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "source": DataSource.BROKER_FEED,
+                "label": "broker feed — read-only, not live orders",
+                "live": False,
+                "freshness": "unavailable",
+                "coverage": "no data",
+                "timestamp_convention": "utc",
+                "data_quality": {
+                    "gaps": 0,
+                    "duplicates": 0,
+                    "suspicious_values": 0,
+                    "stale_feed": True,
+                    "source_disagreement": False,
+                    "unverified_specs": False,
+                },
+            }
 
     # --- Research queue jobs ----------------------------------------------
 
@@ -489,36 +293,27 @@ def create_app(
         request: Request, job_id: str, body: dict[str, Any]
     ) -> dict[str, Any]:
         _authorize(request, store, "cancel_job")
-        job = dashboard.job_scheduler._jobs.get(job_id)
+        job = dashboard.job_scheduler.get_job(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
-        if not job.payload.get("checkpointed", False) and not body.get(
-            "confirm_destructive", False
-        ):
+        result = dashboard.job_scheduler.cancel_job(
+            job_id, confirm_destructive=body.get("confirm_destructive", False)
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        if not result.accepted:
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={
                     "blocked": True,
                     "job_id": job_id,
-                    "reason": "uncheckpointed work could be lost; confirm destructive cancellation",
+                    "reason": result.reason,
                 },
             )
-        # Cooperative cancellation: mark the job for cancellation rather than
-        # completing it immediately. No worker management exists, so the job
-        # transitions to CANCEL_REQUESTED; a worker would need to cooperate
-        # by checking the cancellation flag and completing the cancel.
-        job = Job(
-            job.job_id,
-            job.priority,
-            job.payload,
-            job.scheduled_at,
-            JobStatus.CANCEL_REQUESTED,
-        )
-        dashboard.job_scheduler._jobs[job_id] = job
         return {
             "job_id": job_id,
             "status": JobStatus.CANCEL_REQUESTED,
-            "message": "cancellation requested; cooperative cancel pending",
+            "message": result.reason,
         }
 
     # --- Strategy / signal workbench --------------------------------------
@@ -566,10 +361,34 @@ def create_app(
         risk_data = dashboard.get_risk()
         for s in risk_data.get("strategies", []):
             if s["strategy_id"] == strategy_id:
+                current_dd_pct = s.get("current_dd_pct")
+                daily_loss_pct = s.get("daily_loss_pct")
+                max_dd_pct = s.get("max_dd_pct")
+                max_daily_loss_pct = s.get("max_daily_loss_pct")
+                # If any value is missing or None, we cannot assess risk → blocked
+                if current_dd_pct is None or daily_loss_pct is None or max_dd_pct is None or max_daily_loss_pct is None:
+                    return {
+                        "strategy_id": strategy_id,
+                        "blocked": True,
+                        "risk_state": "blocked",
+                        "reasons": ["missing or invalid risk values"],
+                        **s,
+                    }
+                current_dd_pct = Decimal(str(current_dd_pct))
+                daily_loss_pct = Decimal(str(daily_loss_pct))
+                max_dd_pct = Decimal(str(max_dd_pct))
+                max_daily_loss_pct = Decimal(str(max_daily_loss_pct))
+                blocked = current_dd_pct > max_dd_pct or daily_loss_pct > max_daily_loss_pct
+                reasons = []
+                if current_dd_pct > max_dd_pct:
+                    reasons.append(f"drawdown {current_dd_pct}% exceeds limit {max_dd_pct}%")
+                if daily_loss_pct > max_daily_loss_pct:
+                    reasons.append(f"daily loss {daily_loss_pct}% exceeds limit {max_daily_loss_pct}%")
                 return {
                     "strategy_id": strategy_id,
-                    "blocked": False,
-                    "risk_state": "green",
+                    "blocked": blocked,
+                    "risk_state": "blocked" if blocked else "green",
+                    "reasons": reasons,
                     **s,
                 }
         return {
@@ -589,7 +408,14 @@ def create_app(
     @app.get("/audit/chain/verify")
     def audit_chain_verify(request: Request) -> dict[str, Any]:
         _authorize(request, store, "read_audit")
-        return dashboard.get_audit_events()
+        events = dashboard.get_audit_events()
+        chain_intact = verify_audit_chain(events["events"])
+        return {
+            "events": events["events"],
+            "chain_intact": chain_intact,
+            "audit_chain_valid": chain_intact,
+            "label": "internal_simulation",
+        }
 
     # --- Settings / profiles ----------------------------------------------
 
