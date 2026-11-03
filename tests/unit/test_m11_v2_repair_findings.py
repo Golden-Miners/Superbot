@@ -16,18 +16,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytest
-
-from superbot.m11.api import create_app
-from superbot.m11.ui import render_overview
-from superbot.m11.mt5_data_provider import DataState, MT5DataProvider, TickData
-from superbot.m11.integration import DashboardService
-from superbot.m10.scheduler import Scheduler
-from superbot.strategy.shared_framework import SharedStrategyFramework
-from superbot.risk.portfolio_risk import PortfolioRiskService, RiskLimit, StrategyRecord
-from superbot.supervisor.health import HealthRegistry
 from superbot.contracts.ohlcv import QualityStatus
-
+from superbot.m10.scheduler import Scheduler
+from superbot.m11.api import create_app
+from superbot.m11.integration import DashboardService
+from superbot.m11.mt5_data_provider import DataState, MT5DataProvider
+from superbot.m11.ui import render_overview
+from superbot.risk.portfolio_risk import PortfolioRiskService
+from superbot.strategy.shared_framework import SharedStrategyFramework
 
 # ---------- F1: render_overview should show all health components from DashboardService ---
 
@@ -176,7 +172,7 @@ def test_get_risk_uses_public_api_not_private_attr():
     """F3: DashboardService.get_risk() should use a public method on
     PortfolioRiskService, not access _strategies directly."""
     provider = PortfolioRiskService()
-    provider.register_strategy("test-strat", Decimal("15"), Decimal("3"), Decimal("5"))
+    provider.register_strategy("test-strat", Decimal(15), Decimal(3), Decimal(5))
     ds = DashboardService(risk_service=provider)
     # This should not raise AttributeError even if _strategies is renamed
     result = ds.get_risk()
@@ -234,7 +230,7 @@ def test_risk_strategy_handles_missing_values():
     is missing or None."""
     provider = PortfolioRiskService()
     # Register a strategy with None values to test robustness
-    provider.register_strategy("test-strat", Decimal("15"), Decimal("3"), Decimal("5"))
+    provider.register_strategy("test-strat", Decimal(15), Decimal(3), Decimal(5))
     record = provider.get_strategy("test-strat")
     # Manually set None values to simulate missing data
     record.current_dd_pct = None
