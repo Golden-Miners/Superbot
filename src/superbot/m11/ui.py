@@ -112,11 +112,14 @@ def render_overview(ui: Any | None = None, dashboard_service: Any | None = None,
     u.write("Gold, Silver, Bitcoin, Ethereum, US Oil × M5/M15/H1/H4")
     u.write("Unavailable/unverified mappings shown; values never fabricated.")
     _section_header(ui, "Research / validation queue")
+    u.write(source_label("synthetic_fixture"))
     u.write(f"{len(STATE.jobs)} jobs (see Research queue surface).")
     _section_header(ui, "Strategy lifecycle")
+    u.write(source_label("synthetic_fixture"))
     for s in STATE.strategies:
         u.write(f"{s['strategy_id']}: {s['lifecycle']} ({s['proposal_source']})")
     _section_header(ui, "Simulated equity / risk")
+    _badge(ui, source_label("synthetic_fixture"), "neutral")
     _metric_card(ui, "Daily loss usage", format_pct(0.8))
     _metric_card(ui, "Drawdown peak", format_pct(1.2))
     _section_header(ui, "Alerts / blockers")
@@ -219,6 +222,7 @@ def render_strategy_workbench(ui: Any | None = None, mt5_data_provider: Any | No
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Strategy / Signal Workbench")
+    _badge(ui, source_label("synthetic_fixture"), "neutral")
     if mt5_data_provider is not None and mt5_data_provider.is_connected():
         u.subheader("Live Market Symbols")
         for symbol in sorted(mt5_data_provider.symbol_map.keys()):
@@ -243,6 +247,7 @@ def render_validation_experiments(ui: Any | None = None, mt5_data_provider: Any 
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Validation / Experiments")
+    _badge(ui, source_label("synthetic_fixture"), "neutral")
     if mt5_data_provider is not None and mt5_data_provider.is_connected():
         u.subheader("Live Symbols")
         for symbol in sorted(mt5_data_provider.symbol_map.keys()):
@@ -267,17 +272,14 @@ def render_portfolio_risk(ui: Any | None = None, mt5_data_provider: Any | None =
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Portfolio / Risk (Internal Simulation)")
+    _badge(ui, source_label("synthetic_fixture"), "neutral")
     if mt5_data_provider is not None and mt5_data_provider.is_connected():
         u.subheader("Live Market Symbols")
         for symbol in sorted(mt5_data_provider.symbol_map.keys()):
             tick = mt5_data_provider.get_tick(symbol)
             if tick is not None:
                 u.write(f"{tick.symbol} ({tick.broker_symbol}): {tick.bid:.2f}/{tick.ask:.2f}")
-    _badge(ui, source_label("synthetic_fixture"), "neutral")
-    _metric_card(ui, "Exposure gross", "265.00")
-    _metric_card(ui, "P&L realized", "120.00")
-    _metric_card(ui, "Daily loss usage", format_pct(0.8))
-    _metric_card(ui, "Drawdown peak", format_pct(1.2))
+    u.write("No live broker data available for exposure/P&L/drawdown metrics.")
     u.write("halt state: running | risk state: green")
     u.write("Missing/stale specs or unverifiable sizing show blocked, never zero-risk/green.")
     u.write("No live orders in V1.")
@@ -331,6 +333,7 @@ def render_settings_profiles(ui: Any | None = None, mt5_data_provider: Any | Non
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Settings / Profiles")
+    _badge(ui, source_label("synthetic_fixture"), "neutral")
     u.write(
         '<table class="swiss-table">'
         "<thead><tr>"
