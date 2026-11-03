@@ -132,7 +132,6 @@ def render_data_explorer(ui: Any | None = None, mt5_data_provider: Any | None = 
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Market / Data Explorer")
-    _badge(ui, source_label("broker_feed"), "neutral")
 
     bars = []
     tick = None
@@ -141,6 +140,12 @@ def render_data_explorer(ui: Any | None = None, mt5_data_provider: Any | None = 
         tick = mt5_data_provider.get_tick("XAUUSD")
 
     if bars:
+        latest_bar = bars[0]
+        u.write(
+            f"LIVE BROKER DATA — MT5 — {latest_bar.instrument_id} — "
+            f"Last update: {latest_bar.bar_open_utc.isoformat()} UTC"
+        )
+        _badge(ui, source_label("broker_feed"), "neutral")
         sample = [
             {
                 "t": bar.bar_open_utc.isoformat(),
@@ -163,7 +168,9 @@ def render_data_explorer(ui: Any | None = None, mt5_data_provider: Any | None = 
         _section_header(ui, "Coverage")
         u.write("M5 bars available; timestamp convention: UTC")
     else:
-        u.write("No live broker data available. MT5 terminal not connected.")
+        u.write("DATA UNAVAILABLE — No live data. No fallback data used.")
+        _badge(ui, source_label("broker_feed"), "neutral")
+        u.write("MT5 terminal not connected or no data available.")
 
 
 def render_research_queue(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
