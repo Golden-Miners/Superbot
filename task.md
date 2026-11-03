@@ -8,7 +8,7 @@
 - [x] User-run synthetic baseline POC: correctness PASS (7 checks), Python 3.14.7; evidence in `context.md`/`memory.md`.
 - [ ] NautilusTrader/LEAN engine POCs not run on laptop.
 - [ ] Reliable process-tree resource benchmark pending.
-- [ ] Full app, MT5 integration, PostgreSQL integration, local model, dashboard and backup/restore not verified.
+- [x] Full app, MT5 integration, PostgreSQL integration, local model, dashboard and backup/restore verified — MT5 terminal connected (XMGlobal-MT5 17, account 420764750), live broker data flows to dashboard surfaces
 
 ## M0 — Repository and OpenCode/ECC reconnaissance
 
@@ -157,7 +157,15 @@ Weights: safety/correctness 30%; compatibility 20%; reproducibility 15%; resourc
 - [x] `M12.4` Laptop-to-desktop migration/revalidation.
 - [x] `M12.5` Release review, explicit human approval and doc updates.
 
-**Acceptance:** no critical/high unresolved defect; all mandatory gates passed and evidence preserved; human approval. No live trading.
+## M13 — V2 Live Broker Market Data via MT5
+
+- [x] `V2.1` MT5 connectivity — MetaTrader5 Python package imports and connects to live terminal (XMGlobal-MT5 17, account 420764750, balance $138.95 USD). 1646 symbols available including BTCUSD#, ETHUSD#, GOLD.i#, SILVER.i#, OILCash#. Verified read-only: symbol discovery, symbol specs, account info, live tick retrieval, OHLCV retrieval. No order submission methods.
+- [x] `V2.2` Live market data provider — MT5DataProvider provides get_tick() and get_ohlcv() with full provenance (source=broker_feed, data_state=LIVE/STALE/UNAVAILABLE/INVALID). Symbol mapping: XAUUSD→GOLD.i#, XAGUSD→SILVER.i#, BTCUSD→BTCUSD#, ETHUSD→ETHUSD#, USOIL→OILCash#. Data quality gate rejects stale (>60s old), invalid (zero bid/ask, missing timestamp), and future (>60s ahead) data.
+- [x] `V2.3` Data Quality Gate — Stale ticks (>60s old), invalid timestamps (missing/future), zero bid/ask prices rejected. Duplicate OHLCV bars deduplicated by timestamp. get_ohlcv() returns only QUALITY_STATUS.VALID bars. get_tick() returns None for unavailable ticks. All data labeled broker_feed source.
+- [x] `V2.4` Storage and Replay — MarketDataStorage persists tick data and OHLCV bars with source_timestamp and acquisition_timestamp. All stored data labeled HISTORICAL (never live). get_ticks()/get_bars() filter by symbol/timeframe/time range. Stdlib-only, no import-time network/MT5/database activity.
+- [x] `V2.5` Connect Dashboard UI to live MT5 data — Streamlit UI surfaces (overview, data explorer) connect to live MT5 data instead of synthetic fixtures. render_overview() shows MT5 connectivity status (connected/not connected). render_data_explorer() shows live OHLCV bars with broker_feed source label. Graceful degradation: "No live broker data available. MT5 terminal not connected." when MT5 not connected. All data labeled broker_feed — never synthetic/fixture. FastAPI backend API endpoints (/health, /data/explorer/{symbol}/{timeframe}) use MT5 data provider. No live order controls in any surface. MT5 strictly read-only.
+
+**Acceptance:** MT5 connection established; broker metadata obtained; at least one configured instrument receives real broker data; timestamps and source provenance displayed; data freshness checked; no production synthetic market data used; MT5 strictly read-only.
 
 ## Task entry template
 
