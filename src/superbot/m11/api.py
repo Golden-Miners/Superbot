@@ -208,8 +208,8 @@ def create_app(
         request: Request, symbol: str, timeframe: str
     ) -> dict[str, Any]:
         _authorize(request, store, "read_data_explorer")
-        # Return live broker data from MT5 provider
-        mt5 = app.state.mt5_provider if hasattr(app.state, "mt5_provider") else None
+        # Return live broker data from MT5 provider (closure variable, not
+        # re-read from app.state which may not exist in all deployment modes)
         bars = mt5.get_ohlcv(symbol, timeframe, count=100) if mt5 else []
         tick = mt5.get_tick(symbol) if mt5 else None
 
@@ -361,10 +361,23 @@ def create_app(
         risk_data = dashboard.get_risk()
         for s in risk_data.get("strategies", []):
             if s["strategy_id"] == strategy_id:
-                current_dd_pct = Decimal(str(s["current_dd_pct"]))
-                daily_loss_pct = Decimal(str(s["daily_loss_pct"]))
-                max_dd_pct = Decimal(str(s["max_dd_pct"]))
-                max_daily_loss_pct = Decimal(str(s["max_daily_loss_pct"]))
+                current_dd_pct = s.get("current_dd_pct")
+                daily_loss_pct = s.get("daily_loss_pct")
+                max_dd_pct = s.get("max_dd_pct")
+                max_daily_loss_pct = s.get("max_daily_loss_pct")
+                # If any value is missing or None, we cannot assess risk → blocked
+                if current_dd_pct is None or daily_loss_pct is None or max_dd_pct is None or max_daily_loss_pct is None:
+                    return {
+                        "strategy_id": strategy_id,
+                        "blocked": True,
+                        "risk_state": "blocked",
+                        "reasons": ["missing or invalid risk values"],
+                        **s,
+                    }
+                current_dd_pct = Decimal(str(current_dd_pct))
+                daily_loss_pct = Decimal(str(daily_loss_pct))
+                max_dd_pct = Decimal(str(max_dd_pct))
+                max_daily_loss_pct = Decimal(str(max_daily_loss_pct))
                 blocked = current_dd_pct > max_dd_pct or daily_loss_pct > max_daily_loss_pct
                 reasons = []
                 if current_dd_pct > max_dd_pct:

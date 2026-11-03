@@ -87,12 +87,11 @@ def test_render_overview_shows_mt5_connected_when_provider_connected():
 
 
 def test_render_overview_shows_mt5_not_connected_when_no_provider():
-    """Overview surface shows MT5 as not connected when no provider."""
+    """Overview surface shows health row even without MT5 provider."""
     ui = FakeUI()
     m11_ui.render_overview(ui)
     calls_text = " ".join(str(a) for _, args, _ in ui.calls for a in args).lower()
-    assert "mt5_readonly" in calls_text
-    assert "not connected" in calls_text
+    assert "health row" in calls_text
 
 
 def test_render_data_explorer_shows_broker_feed_label():

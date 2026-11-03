@@ -245,6 +245,10 @@ class Scheduler:
         """Return a job by its ID, or None if not found."""
         return self._jobs.get(job_id)
 
+    def get_jobs(self) -> dict[str, Job]:
+        """Return all jobs as a read-only dict copy."""
+        return dict(self._jobs)
+
     def cancel_job(self, job_id: str, confirm_destructive: bool = False) -> SchedulerResult | None:
         """Cancel a job cooperatively.
 

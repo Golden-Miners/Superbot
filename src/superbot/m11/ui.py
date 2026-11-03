@@ -87,21 +87,27 @@ def _badge_from_state(ui: Any, state: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def render_overview(ui: Any | None = None, mt5_data_provider: Any | None = None) -> None:
+def render_overview(ui: Any | None = None, dashboard_service: Any | None = None, mt5_data_provider: Any | None = None) -> None:
     """Overview surface: health row, coverage, queue, strategy lifecycle,
     simulated equity/risk, alerts and blockers."""
     u = _get_ui(ui)
     _inject_css(u)
     u.title("Superbot — Overview")
     u.subheader("Health row")
-    mt5_connected = mt5_data_provider is not None and mt5_data_provider.is_connected()
-    mt5_status = "connected" if mt5_connected else "not connected"
-    _badge(ui, f"mt5_readonly: {mt5_status} — read-only broker data", "neutral")
-    for name, comp in STATE.health_components.items():
-        if name == "mt5_readonly":
-            continue  # already shown above
-        text, icon = health_badge(comp.status.value)
-        _badge(ui, f"{icon} {name}: {text} — {comp.message}", "neutral")
+    # Health components come from the DashboardService registry, which runs
+    # real checks for api, postgresql, worker_supervisor, model_runtime,
+    # and mt5_readonly. Fall back to MT5 provider if no dashboard service.
+    if dashboard_service is not None:
+        components = dashboard_service.health_registry.run_all()
+        for name, comp in components.items():
+            text, icon = health_badge(comp.status.value)
+            _badge(ui, f"{icon} {name}: {text} — {comp.message}", "neutral")
+    elif mt5_data_provider is not None:
+        mt5_connected = mt5_data_provider.is_connected()
+        mt5_status = "connected" if mt5_connected else "not connected"
+        _badge(ui, f"✓ mt5_readonly: {mt5_status} — read-only broker data", "neutral")
+    else:
+        u.write("Health registry unavailable — dashboard service not configured.")
     _section_header(ui, "Instrument × timeframe coverage")
     u.write("Gold, Silver, Bitcoin, Ethereum, US Oil × M5/M15/H1/H4")
     u.write("Unavailable/unverified mappings shown; values never fabricated.")

@@ -237,15 +237,15 @@ class DashboardService:
     def get_risk(self) -> dict[str, Any]:
         """Return portfolio risk from the PortfolioRiskService."""
         strategies: list[dict[str, Any]] = []
-        for name, record in self.risk_service._strategies.items():
+        for name, record in self.risk_service.get_strategies().items():
             strategies.append(
                 {
                     "strategy_id": name,
-                    "current_dd_pct": str(record.current_dd_pct),
-                    "daily_loss_pct": str(record.daily_loss_pct),
-                    "max_dd_pct": str(record.limit.max_dd_pct),
-                    "max_daily_loss_pct": str(record.limit.daily_loss_pct),
-                    "max_position_pct": str(record.limit.max_position_pct),
+                    "current_dd_pct": record.current_dd_pct,
+                    "daily_loss_pct": record.daily_loss_pct,
+                    "max_dd_pct": record.limit.max_dd_pct,
+                    "max_daily_loss_pct": record.limit.daily_loss_pct,
+                    "max_position_pct": record.limit.max_position_pct,
                 }
             )
         return {
@@ -323,7 +323,7 @@ class DashboardService:
     def get_jobs(self) -> dict[str, Any]:
         """Return jobs from the Scheduler."""
         jobs: list[dict[str, Any]] = []
-        for job in self.job_scheduler._jobs.values():
+        for job in self.job_scheduler.get_jobs().values():
             jobs.append(
                 {
                     "job_id": job.job_id,
@@ -345,10 +345,8 @@ class DashboardService:
 
     def get_strategies(self) -> dict[str, Any]:
         """Return strategies from SharedStrategyFramework."""
-        # SharedStrategyFramework stores configs internally; expose what we can
         strategies: list[dict[str, Any]] = []
-        # The framework may not expose a public listing; use what's available
-        for config in getattr(self.strategy_framework, "_configs", {}).values():
+        for config in self.strategy_framework.all_configs():
             strategies.append(
                 {
                     "strategy_id": config.config_id,

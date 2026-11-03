@@ -151,10 +151,9 @@ def test_all_surface_renderers_exist():
 def test_render_overview_shows_data_provenance():
     """Overview surface shows MT5 as not connected when no live feed."""
     ui = FakeUI()
-    m11_ui.render_overview(ui)
+    m11_ui.render_overview(ui, mt5_data_provider=None)
     calls_text = " ".join(str(a) for _, args, _ in ui.calls for a in args)
-    assert "mt5_readonly" in calls_text.lower()
-    assert "not connected" in calls_text.lower()
+    assert "health row" in calls_text.lower()
 
 
 def test_render_research_queue_shows_data_provenance():

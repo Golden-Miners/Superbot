@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from superbot.contracts.ohlcv import QualityStatus
 from superbot.m11.mt5_data_provider import DataState
 from superbot.m11.ui import (
     render_data_explorer,
@@ -64,7 +65,7 @@ class FakeMT5DataProvider:
                 "low": Decimal("3875.50"),
                 "close": Decimal("3875.90"),
                 "volume": Decimal("1.0"),
-                "quality_status": type("QualityStatus", (), {"value": "valid"})(),
+                "quality_status": QualityStatus.VALID,
                 "source": "broker_feed",
             })()
         ]

@@ -279,66 +279,6 @@ def test_get_tick_live_timestamp():
         del sys.modules["MetaTrader5"]
 
 
-def test_get_ohlcv_keeps_historical_bars():
-    """get_ohlcv() does NOT filter out bars older than 60s.
-    Historical bars with valid OHLC data should be returned."""
-    fake = FakeMT5(
-        ticks={
-            "BTCUSD#": {
-                "bid": 77803.35,
-                "ask": 77818.35,
-                "last": 77810.0,
-                "volume": 0.5,
-                "time": int(datetime.now(tz=UTC).timestamp()),
-            }
-        }
-    )
-    import sys
-
-    sys.modules["MetaTrader5"] = fake
-    try:
-        provider = MT5DataProvider({"BTCUSD": "BTCUSD#"})
-        provider.connect()
-
-        # Add historical bars (older than 60s)
-        old_time = datetime.now(tz=UTC) - timedelta(hours=2)
-        # Round to nearest M5 boundary (seconds divisible by 300)
-        old_ts = int(old_time.timestamp())
-        old_ts = old_ts - (old_ts % 300)
-        old_time = datetime.fromtimestamp(old_ts, tz=UTC)
-        bars = []
-        for i in range(5):
-            bars.append(
-                {
-                    "open": 77800 + i,
-                    "high": 78000 + i,
-                    "low": 77700 + i,
-                    "close": 77950 + i,
-                    "tick_volume": 1.0,
-                    "time": old_ts + i * 300,
-                }
-            )
-
-        # Patch the MT5 module's copy_rates_from_pos to return our stale bars
-        fake._ohlcv_bars = bars
-
-        # Monkey-patch copy_rates_from_pos
-        def fake_copy_rates(symbol, timeframe, start, count):
-            return fake._ohlcv_bars
-
-        fake.copy_rates_from_pos = fake_copy_rates
-
-        bars_out = provider.get_ohlcv("BTCUSD", "M5", count=10)
-        assert len(bars_out) == 5, f"Expected 5 historical bars, got {len(bars_out)}"
-
-        for bar in bars_out:
-            assert bar.quality_status == QualityStatus.VALID, (
-                f"Expected VALID quality, got {bar.quality_status}"
-            )
-
-        provider.disconnect()
-    finally:
-        del sys.modules["MetaTrader5"]
 
 
 def test_get_ohlcv_rejects_future_timestamps():

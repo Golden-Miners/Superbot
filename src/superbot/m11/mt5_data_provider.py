@@ -303,8 +303,14 @@ class MT5DataProvider:
         if timestamp_utc is None:
             return None
 
-        # Historical bars are valid regardless of age — only validate OHLC values
-        quality_status = QualityStatus.VALID
+        # Data quality gate: stale bars (>5 min old) are marked STALE,
+        # fresh bars are VALID. No bar is ever presented as live broker data
+        # unless its timestamp is within the staleness window.
+        age = (datetime.now(tz=UTC) - timestamp_utc).total_seconds()
+        if age > 300.0:
+            quality_status = QualityStatus.STALE
+        else:
+            quality_status = QualityStatus.VALID
 
         return OHLCVBar(
             schema_version="1.0",

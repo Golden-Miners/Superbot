@@ -58,9 +58,8 @@ class FakeMT5DataProvider:
         from superbot.contracts.ohlcv import OHLCVBar, QualityStatus, Timeframe
 
         # Use M5-aligned timestamp (5-minute boundary from epoch)
-        epoch = datetime(1970, 1, 1, tzinfo=UTC)
-        bar_open = epoch.replace(hour=0, minute=0, second=0, microsecond=0)
-        bar_open = bar_open.replace(minute=bar_open.minute // 5 * 5)
+        now = datetime.now(tz=UTC)
+        bar_open = now.replace(minute=(now.minute // 5) * 5, second=0, microsecond=0)
 
         return [
             OHLCVBar(
@@ -78,7 +77,7 @@ class FakeMT5DataProvider:
                 volume=Decimal("1.0"),
                 volume_kind=None,
                 bar_close_utc=None,
-                source_timestamp="2026-01-15T10:00:00+00:00",
+                source_timestamp=bar_open.isoformat(),
                 source_timezone="UTC",
                 source_revision=None,
                 quality_status=QualityStatus.VALID,
@@ -99,8 +98,7 @@ def test_data_explorer_returns_live_broker_data():
     not synthetic fixtures."""
     provider = FakeMT5DataProvider()
     store = SessionStore()
-    app = create_app(session_store=store, dashboard_service=None)
-    app.state.mt5_provider = provider
+    app = create_app(session_store=store, dashboard_service=None, mt5_data_provider=provider)
 
     _, token = store.create_session(Role.OWNER)
 
@@ -120,8 +118,7 @@ def test_health_reports_mt5_connectivity():
     """GET /health reports MT5 connectivity status (not NOT_PROBED)."""
     provider = FakeMT5DataProvider()
     store = SessionStore()
-    app = create_app(session_store=store, dashboard_service=None)
-    app.state.mt5_provider = provider
+    app = create_app(session_store=store, dashboard_service=None, mt5_data_provider=provider)
 
     client = TestClient(app)
     _, token = store.create_session(Role.OWNER)
@@ -169,8 +166,7 @@ def test_data_explorer_quality_state_from_provider():
     """Data explorer reflects quality state from MT5 provider (VALID/STALE/UNAVAILABLE)."""
     provider = FakeMT5DataProvider()
     store = SessionStore()
-    app = create_app(session_store=store, dashboard_service=None)
-    app.state.mt5_provider = provider
+    app = create_app(session_store=store, dashboard_service=None, mt5_data_provider=provider)
 
     client = TestClient(app)
     _, token = store.create_session(Role.OWNER)
