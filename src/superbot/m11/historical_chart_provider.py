@@ -91,6 +91,11 @@ class HistoricalChartProvider:
 
     SUPPORTED_TIMEFRAMES: list[str] = ["M5", "M15", "H1", "H4"]
 
+    @property
+    def supported_timeframes(self) -> list[str]:
+        """Return supported timeframes (lowercase alias for SUPPORTED_TIMEFRAMES)."""
+        return self.SUPPORTED_TIMEFRAMES
+
     def __init__(self, mt5_data_provider: MT5DataProvider | None = None) -> None:
         self.mt5_data_provider = mt5_data_provider
         self._connected = False
@@ -138,8 +143,8 @@ class HistoricalChartProvider:
         """
         if timeframe not in self.SUPPORTED_TIMEFRAMES:
             raise ValueError(
-                f"Unsupported timeframe: {timeframe}. "
-                f"Supported: {', '.join(self.SUPPORTED_TIMEFRAMES)}"
+                f"unsupported timeframe: {timeframe}. "
+                f"supported: {', '.join(self.SUPPORTED_TIMEFRAMES)}"
             )
 
         if not self.is_connected():
@@ -164,7 +169,7 @@ class HistoricalChartProvider:
                 HistoricalChartBar(
                     symbol=bar.instrument_id,
                     broker_symbol=bar.provider_symbol,
-                    source=bar.source,
+                    source="broker_feed",
                     timestamp_utc=bar.bar_open_utc.isoformat(),
                     data_freshness=freshness,
                     open=float(bar.open),

@@ -242,17 +242,17 @@ CSS_VARIABLES = """
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.swivl-btn:hover {
+.swiss-btn:hover {
   background: var(--color-surface-elevated);
   border-color: var(--color-text-secondary);
 }
 
-.swivl-btn:focus-visible {
+.swiss-btn:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--color-focus-ring);
 }
 
-.swivl-btn:disabled {
+.swiss-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
