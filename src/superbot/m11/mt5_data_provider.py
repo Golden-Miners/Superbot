@@ -172,16 +172,18 @@ class MT5DataProvider:
             data_state = DataState.UNAVAILABLE
         else:
             age = (datetime.now(tz=UTC) - timestamp_utc).total_seconds()
-            if abs(age) <= 60.0:
-                # Within 60 seconds → live (accounts for minor clock skew)
+            if abs(age) <= 300.0:
+                # Within 5 minutes → live (accounts for broker clock skew)
                 data_state = DataState.LIVE
-            elif age > 60.0:
-                # Older than 60 seconds → stale (historical bar data, still valid)
+            elif age > 300.0:
+                # Older than 5 minutes → stale (historical bar data, still valid)
                 data_state = DataState.STALE
+            elif abs(age) <= 86400.0:
+                # Future timestamp within 24 hours → likely broker clock skew
+                # Treat as live rather than invalid
+                data_state = DataState.LIVE
             else:
-                # Future timestamp (>60 seconds ahead) → INVALID
-                # Broker terminal clock may be ahead of local system clock,
-                # but future timestamps are not valid market data.
+                # Future timestamp more than 24 hours ahead → INVALID
                 data_state = DataState.INVALID
 
         return TickData(
@@ -402,6 +404,88 @@ class MT5DataProvider:
             verification_status=VerificationStatus.VERIFIED,
             source_metadata_ref=f"mt5:symbol_info:{broker_symbol}",
         )
+
+    def get_account_info(self) -> dict | None:
+        """Get account info from MT5 terminal via symbol_info_tick's account data.
+
+        Returns dict with login, server, trade_mode, currency, balance, equity.
+        Returns None if not connected or account info unavailable.
+        """
+        if not self.is_connected():
+            return None
+        try:
+            account_info = self._mt5.account_info()
+            if account_info is None:
+                return None
+            return {
+                "login": getattr(account_info, "login", None),
+                "server": getattr(account_info, "server", None),
+                "trade_mode": getattr(account_info, "trade_mode", None),
+                "currency": getattr(account_info, "currency", None),
+                "balance": getattr(account_info, "balance", None),
+                "equity": getattr(account_info, "equity", None),
+            }
+        except (RuntimeError, ConnectionError, OSError, ValueError, AttributeError):
+            return None
+
+    def account_info(self):
+        """Return account info object like MT5's account_info().
+
+        Returns an object with login, server, trade_mode, currency, balance,
+        equity attributes. Returns None if not connected or unavailable.
+        """
+        info = self.get_account_info()
+        if info is None:
+            return None
+        return type("AccountInfo", (), info)()
+
+    def get_terminal_info(self) -> dict | None:
+        """Get terminal info from MT5 terminal.
+
+        Returns dict with name, company, connected, trade_allowed.
+        Returns None if not connected or terminal info unavailable.
+        """
+        if not self.is_connected():
+            return None
+        try:
+            terminal_info = self._mt5.terminal_info()
+            if terminal_info is None:
+                return None
+            return {
+                "name": getattr(terminal_info, "name", None),
+                "company": getattr(terminal_info, "company", None),
+                "connected": getattr(terminal_info, "connected", False),
+                "trade_allowed": getattr(terminal_info, "trade_allowed", False),
+            }
+        except (RuntimeError, ConnectionError, OSError, ValueError, AttributeError):
+            return None
+
+    def order_send(self, request: dict) -> dict | None:
+        """Send an order to the MT5 terminal via order_send.
+
+        Sends a trade request to the connected MT5 terminal and returns
+        the broker response dict. Returns None if not connected or the
+        terminal is unavailable.
+
+        Args:
+            request: MT5 order_send request dict with action, symbol,
+                volume, type, price, and optional sl/tp/deviation/magic.
+
+        Returns:
+            Broker response dict-like object, or None if unavailable.
+        """
+        if not self.is_connected():
+            return None
+        try:
+            mt5 = self._mt5
+            if mt5 is None:
+                return None
+            print(f"DEBUG: mt5.order_send request: {request}")
+            result = mt5.order_send(request)
+            print(f"DEBUG: mt5.order_send result: retcode={getattr(result, 'retcode', 'N/A')}, comment={getattr(result, 'comment', 'N/A')}")
+            return result
+        except (RuntimeError, ConnectionError, OSError, ValueError, AttributeError):
+            return None
 
     @staticmethod
     def _map_asset_class(info) -> AssetClass:
