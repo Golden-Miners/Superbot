@@ -24,208 +24,8 @@ from superbot.m11.mt5_data_provider import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Design system CSS — dark trading terminal
-# ---------------------------------------------------------------------------
-
-CSS = """
-<style>
-/* ========================================================================= */
-/*  Global shell                                                             */
-/* ========================================================================= */
-.stApp {
-  background-color: #0a0a0a;
-  color: #e0e0e0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.stApp h1, .stApp h2, .stApp h3 {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: #e0e0e0;
-}
-
-.stApp h1 {
-  font-size: 1.25rem;
-  margin: 0 0 1rem 0;
-}
-
-.stApp h2 {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #b3b3b3;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  border-bottom: 1px solid #2a2a2a;
-  padding-bottom: 0.25rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.stApp .stMarkdown p,
-.stApp .stMarkdown div,
-.stApp .stMarkdown span {
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: #b3b3b3;
-}
-
-/* Hide Streamlit chrome */
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
-header { visibility: hidden; }
-
-/* ---------------------------------------------------------------- */
-/*  Sidebar                                                         */
-/* ---------------------------------------------------------------- */
-.stSidebar {
-  background: #0f0f0f;
-  border-right: 1px solid #2a2a2a;
-}
-
-.stSidebar .stRadio > div[role="radiogroup"] {
-  gap: 0.125rem;
-}
-
-.stSidebar .stRadio label {
-  background: transparent;
-  border-radius: 4px;
-  padding: 0.5rem 0.75rem;
-  color: #8a8a8a;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.stSidebar .stRadio label:hover {
-  background: #1a1a1a;
-  color: #e0e0e0;
-}
-
-.stSidebar .stRadio [role="radio"][aria-checked="true"] + div {
-  background: #1a1a1a;
-  color: #e0e0e0;
-  border-left: 2px solid #4a9eff;
-}
-
-/* ---------------------------------------------------------------- */
-/*  Layout helpers                                                  */
-/* ---------------------------------------------------------------- */
-.stApp .sb-panel {
-  background: #121212;
-  border: 1px solid #2a2a2a;
-  border-radius: 4px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-.stApp .sb-section-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #b3b3b3;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.75rem;
-}
-
-.stApp .sb-metric-label {
-  font-size: 0.75rem;
-  color: #8a8a8a;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.25rem;
-}
-
-.stApp .sb-metric {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #e0e0e0;
-  margin-bottom: 0.25rem;
-}
-
-.stApp .sb-meta {
-  font-size: 0.75rem;
-  color: #8a8a8a;
-  margin-bottom: 1rem;
-}
-
-.stApp .sb-metric.pos { color: #00d4aa; }
-.stApp .sb-metric.neg { color: #ff4444; }
-
-.stApp .sb-flex {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-/* ---------------------------------------------------------------- */
-/*  Tables                                                          */
-/* ---------------------------------------------------------------- */
-.stApp .sb-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8125rem;
-}
-
-.stApp .sb-table th {
-  text-align: left;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #8a8a8a;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #2a2a2a;
-  background: #121212;
-}
-
-.stApp .sb-table td {
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #1a1a1a;
-  color: #e0e0e0;
-  white-space: nowrap;
-}
-
-.stApp .sb-table tr:hover {
-  background: #1a1a1a;
-}
-
-/* ---------------------------------------------------------------- */
-/*  Badges                                                          */
-/* ---------------------------------------------------------------- */
-.stApp .badge-live   { color: #00d4aa; font-weight: 600; }
-.stApp .badge-deal   { color: #00d4aa; font-weight: 600; }
-.stApp .badge-reject { color: #ff4444; font-weight: 600; }
-.stApp .badge-fill   { color: #00d4aa; font-weight: 600; }
-.stApp .badge-cancel { color: #ff4444; font-weight: 600; }
-.stApp .badge-warning{ color: #ffaa00; font-weight: 600; }
-.stApp .badge-error  { color: #ff4444; font-weight: 600; }
-.stApp .badge-neutral{ color: #b3b3b3; }
-
-/* ---------------------------------------------------------------- */
-/*  P&L colors                                                        */
-/* ---------------------------------------------------------------- */
-.stApp .pos { color: #00d4aa; font-weight: 600; }
-.stApp .neg { color: #ff4444; font-weight: 600; }
-.stApp .flat { color: #b3b3b3; }
-</style>
-"""
-
-
-def inject_css(ui: Any) -> None:
-    u = _get_ui(ui)
-    u.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
-
-
-# Alias for backward-compat: tests call _inject_css
-_inject_css = inject_css
-
-
 def _badge(ui: Any, text: str, variant: str = "neutral") -> None:
-    css_class = f"badge-{variant}"
+    css_class = f"swiss-badge swiss-badge--{variant}"
     u = _get_ui(ui)
     u.markdown(f'<span class="{css_class}">{text}</span>', unsafe_allow_html=True)
 
@@ -238,9 +38,9 @@ def _metric_card(ui: Any, label: str, value: str, variant: str = "neutral") -> N
     u = _get_ui(ui)
     variant_class = f" {variant}" if variant != "neutral" else ""
     u.markdown(
-        f'<div class="sb-panel">'
-        f'<div class="sb-metric-label">{label}</div>'
-        f'<div class="sb-metric {variant}">{value}</div>'
+        f'<div class="swiss-metric-card{variant_class}">'
+        f'<div class="swiss-metric-label">{label}</div>'
+        f'<div class="swiss-metric-value {variant}">{value}</div>'
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -248,7 +48,7 @@ def _metric_card(ui: Any, label: str, value: str, variant: str = "neutral") -> N
 
 def _section_header(ui: Any, text: str) -> None:
     u = _get_ui(ui)
-    u.markdown(f'<h2>{text}</h2>', unsafe_allow_html=True)
+    u.markdown(f'<div class="swiss-section-header">{text}</div>', unsafe_allow_html=True)
 
 
 class _DummyUI:
@@ -327,7 +127,7 @@ def source_label(source: str) -> str:
 def _badge_from_state(ui: Any | None, state: str) -> None:
     """Render a badge from a state string."""
     u = _get_ui(ui)
-    u.markdown(f'<span class="badge-neutral">{state}</span>', unsafe_allow_html=True)
+    u.markdown(f'<span class="swiss-badge swiss-badge--neutral">{state}</span>', unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +197,7 @@ def render_overview(
 ) -> None:
     """Overview — trading command centre."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("Superbot — Overview")
     u.caption("No live orders in V1")
 
@@ -405,17 +205,17 @@ def render_overview(
     if auth:
         _section_header(u, "Execution Control")
         if auth.execution_mode == ExecutionMode.AUTONOMOUS_DEMO:
-            badge(ui, "AUTONOMOUS_DEMO — live demo execution active", "badge-live")
+            badge(ui, "AUTONOMOUS_DEMO — live demo execution active", "live")
         elif auth.execution_mode == ExecutionMode.READ_ONLY:
-            badge(ui, "Execution mode: READ_ONLY — broker writes blocked", "badge-neutral")
+            badge(ui, "Execution mode: READ_ONLY — broker writes blocked", "neutral")
         else:
-            badge(ui, "Execution mode: OFF — no new entries", "badge-error")
+            badge(ui, "Execution mode: OFF — no new entries", "blocked")
 
         if auth.execution_mode == ExecutionMode.AUTONOMOUS_DEMO:
             if u.button("Disable Execution", type="secondary", key="disable_exec"):
                 auth.set_mode(ExecutionMode.READ_ONLY)
-                st.sidebar.success("Execution disabled — READ_ONLY mode")
-                st.rerun()
+                u.sidebar.success("Execution disabled — READ_ONLY mode")
+                u.rerun()
         else:
             if u.button("Enable Demo Execution", type="primary"):
                 from superbot.m11.auth import SessionStore
@@ -423,7 +223,7 @@ def render_overview(
                 ss = SessionStore()
                 _sess, token = ss.create_session(role="owner")
                 auth.enable_execution(token, ss)
-                st.rerun()
+                u.rerun()
 
     # ---- Dashboard service health row (F1) -----------------------------
     _section_header(u, "Health Row")
@@ -474,11 +274,11 @@ def render_overview(
     # ---- Latest signals -------------------------------------------------
     _section_header(u, "Latest Signals")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Recent decisions</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Recent decisions</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'No recent signals. Market data feed: '
-        '<span class="badge-neutral">not live</span>'
+        '<span class="swiss-badge swiss-badge--neutral">not live</span>'
         '</div>'
         '</div>',
         unsafe_allow_html=True,
@@ -502,14 +302,14 @@ def render_overview(
     # success; color is never the only signal — text + badge class).
     mode = auth.get_mode() if auth else ExecutionMode.READ_ONLY
     if mode == ExecutionMode.AUTONOMOUS_DEMO:
-        mode_variant, mode_text = "badge-live", "AUTONOMOUS_DEMO"
+        mode_variant, mode_text = "swiss-badge swiss-badge--live", "AUTONOMOUS_DEMO"
     elif mode == ExecutionMode.READ_ONLY:
-        mode_variant, mode_text = "badge-neutral", "READ_ONLY"
+        mode_variant, mode_text = "swiss-badge swiss-badge--neutral", "READ_ONLY"
     else:
-        mode_variant, mode_text = "badge-error", "OFF"
+        mode_variant, mode_text = "swiss-badge swiss-badge--blocked", "OFF"
 
     mt5_connected = bool(mt5_data_provider and mt5_data_provider.is_connected())
-    mt5_variant = "badge-neutral" if mt5_connected else "badge-error"
+    mt5_variant = "swiss-badge swiss-badge--neutral" if mt5_connected else "swiss-badge swiss-badge--blocked"
     mt5_text = "connected" if mt5_connected else "disconnected"
 
     account_verified = False
@@ -524,14 +324,14 @@ def render_overview(
             )
             server = account_info.get("server", "")
             server_allowlisted = bool(auth) and server in auth.demo_servers
-    acct_variant = "badge-neutral" if account_verified else "badge-error"
+    acct_variant = "swiss-badge swiss-badge--neutral" if account_verified else "swiss-badge swiss-badge--blocked"
     acct_text = "verified" if account_verified else "not verified"
-    srv_variant = "badge-neutral" if server_allowlisted else "badge-error"
+    srv_variant = "swiss-badge swiss-badge--neutral" if server_allowlisted else "swiss-badge swiss-badge--blocked"
     srv_text = "verified" if server_allowlisted else "not verified"
 
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Hard Gates</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Hard Gates</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         f'• Execution mode: <span class="{mode_variant}">{mode_text}</span><br>'
         f'• MT5 terminal: <span class="{mt5_variant}">{mt5_text}</span><br>'
@@ -549,15 +349,15 @@ def render_data_explorer(
 ) -> None:
     """Render market data explorer — alias for market data view."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("Market / Data Explorer")
     u.caption("No live orders in V1")
 
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Market Data Source</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Market Data Source</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
-        f'<span class="badge-neutral">{source_label("broker_feed")}</span><br>'
+        f'<span class="swiss-badge swiss-badge--neutral">{source_label("broker_feed")}</span><br>'
         'No live broker data — internal_simulation only.'
         '</div>'
         '</div>',
@@ -580,9 +380,9 @@ def render_data_explorer(
                 continue
             spread = (tick.ask - tick.bid) if (tick.bid is not None and tick.ask is not None) else None
             state_class = (
-                "badge-live" if tick.data_state == DataState.LIVE else
-                "badge-warning" if tick.data_state == DataState.STALE else
-                "badge-error"
+                "swiss-badge swiss-badge--live" if tick.data_state == DataState.LIVE else
+                "swiss-badge swiss-badge" if tick.data_state == DataState.STALE else
+                "swiss-badge swiss-badge--blocked"
             )
             rows.append(
                 {
@@ -600,9 +400,9 @@ def render_data_explorer(
 
         if rows:
             u.markdown(
-                '<div class="sb-panel">'
-                '<div class="sb-section-title">Live Tick Data</div>'
-                '<table class="sb-table">'
+                '<div class="swiss-metric-card">'
+                '<div class="swiss-section-header">Live Tick Data</div>'
+                '<table class="swiss-table">'
                 "<thead><tr>"
                 "<th>Symbol</th><th>Broker Symbol</th><th>Bid</th><th>Ask</th>"
                 "<th>Spread</th><th>State</th><th>Timestamp</th>"
@@ -636,14 +436,14 @@ def render_research_queue(
 ) -> None:
     """Research Queue — signals pending authorization."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("Research Queue")
     u.caption("No live orders in V1")
 
     _section_header(u, "Signal Queue")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Pending Jobs</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Pending Jobs</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'No pending jobs awaiting authorization.<br>'
         'Source: synthetic fixture — internal_simulation — not live broker data.'
@@ -654,8 +454,8 @@ def render_research_queue(
 
     if mt5_data_provider and mt5_data_provider.is_connected():
         u.markdown(
-            f'<div class="sb-panel">'
-            f'<div class="sb-section-title">Live Symbols</div>'
+            f'<div class="swiss-metric-card">'
+            f'<div class="swiss-section-header">Live Symbols</div>'
             f'<div style="color:#b3b3b3; font-size:0.875rem;">'
             f'{source_label("broker_feed")}<br>'
             f'{", ".join(mt5_data_provider.symbol_map.keys())}'
@@ -671,14 +471,14 @@ def render_strategy_workbench(
 ) -> None:
     """Strategy / Signal Workbench."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("Strategy / Signal Workbench")
     u.caption("No live orders in V1")
 
     _section_header(u, "Strategy Registry")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Available Strategies</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Available Strategies</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'No strategies registered in the shared framework.<br>'
         'AI proposals are staged separately.<br>'
@@ -709,14 +509,14 @@ def render_validation_experiments(
 ) -> None:
     """Validation / Experiments surface."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("Validation / Experiments")
     u.caption("No live orders in V1")
 
     _section_header(u, "Gate States")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Validation / Experiments</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Validation / Experiments</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'No experiments — internal simulation.<br>'
         'Source: synthetic fixture — internal_simulation — not live broker data.'
@@ -734,7 +534,7 @@ def render_portfolio_risk(
 ) -> None:
     """Portfolio & Risk — risk metrics and limits."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("Portfolio / Risk (Internal Simulation)")
     u.caption("No live orders in V1")
 
@@ -759,34 +559,34 @@ def render_portfolio_risk(
     # Halt status
     _section_header(u, "Halt Status")
     if auth and auth.is_halted():
-        badge(ui, f"HALTED — {auth._halt_reason}", "badge-error")
+        badge(ui, f"HALTED — {auth._halt_reason}", "blocked")
     else:
-        badge(ui, "Portfolio not halted", "badge-neutral")
+        badge(ui, "Portfolio not halted", "neutral")
 
     # Risk gates
     _section_header(u, "Risk Gates")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Risk Gate Status</div>'
-        '<table class="sb-table">'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Risk Gate Status</div>'
+        '<table class="swiss-table">'
         "<thead><tr>"
         "<th>Gate</th><th>Status</th><th>Detail</th>"
         "</tr></thead>"
         "<tbody>"
         "<tr><td>Execution mode</td>"
-        f"<td><span class=\"badge-neutral\">{auth.execution_mode.value if auth else 'unknown'}</span></td>"
+        f"<td><span class=\"swiss-badge swiss-badge--neutral\">{auth.execution_mode.value if auth else 'unknown'}</span></td>"
         "<td>DEMO execution required for broker writes</td></tr>"
         "<tr><td>DEMO account</td>"
-        "<td><span class=\"badge-warning\">not verified</span></td>"
+        "<td><span class=\"swiss-badge swiss-badge\">not verified</span></td>"
         "<td>MT5 account trade_mode must be 0 (DEMO)</td></tr>"
         "<tr><td>Server allowlist</td>"
-        "<td><span class=\"badge-warning\">not verified</span></td>"
+        "<td><span class=\"swiss-badge swiss-badge\">not verified</span></td>"
         "<td>Account server must be an approved XM demo server</td></tr>"
         "<tr><td>Market data freshness</td>"
-        "<td><span class=\"badge-warning\">not verified</span></td>"
+        "<td><span class=\"swiss-badge swiss-badge\">not verified</span></td>"
         "<td>Market data must be live (not stale/invalid)</td></tr>"
         "<tr><td>Risk limits</td>"
-        "<td><span class=\"badge-warning\">not evaluated</span></td>"
+        "<td><span class=\"swiss-badge swiss-badge\">not evaluated</span></td>"
         "<td>Order volume, stop-loss distance, and risk caps checked per order</td></tr>"
         "</tbody></table>"
         '</div>',
@@ -794,8 +594,8 @@ def render_portfolio_risk(
     )
 
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Data Source</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Data Source</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'Internal simulation — not live broker data.<br>'
         'Status: unavailable when no live feed.<br>'
@@ -813,7 +613,7 @@ def render_execution_history(
 ) -> None:
     """Execution History — trade history and order log."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("Execution History")
 
     positions = []
@@ -826,7 +626,7 @@ def render_execution_history(
     _section_header(u, "Open Positions")
     if positions:
         u.markdown(
-            '<table class="sb-table">'
+            '<table class="swiss-table">'
             "<thead><tr>"
             "<th>Ticket</th><th>Symbol</th><th>Type</th><th>Volume</th>"
             "<th>Entry Price</th><th>Current Price</th><th>SL</th><th>TP</th>"
@@ -862,7 +662,7 @@ def render_execution_history(
     _section_header(u, "Pending Orders")
     if orders:
         u.markdown(
-            '<table class="sb-table">'
+            '<table class="swiss-table">'
             "<thead><tr>"
             "<th>Ticket</th><th>Symbol</th><th>Type</th><th>Volume</th>"
             "<th>Price Open</th><th>SL</th><th>TP</th><th>Time</th>"
@@ -894,8 +694,8 @@ def render_execution_history(
     _section_header(u, "Trade History")
     u.info("Trade history from broker execution log is not yet available.")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Trade Record Fields</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Trade Record Fields</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'When broker trade history is available, the following fields '
         'will be displayed for each executed trade:<br>'
@@ -919,7 +719,7 @@ def render_system_health(
 ) -> None:
     """System Health — system status and diagnostics."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("System Health")
 
     _section_header(u, "System Components")
@@ -927,13 +727,13 @@ def render_system_health(
     # MT5 connection
     mt5_connected = mt5_data_provider.is_connected()
     mt5_status = "connected" if mt5_connected else "not connected"
-    mt5_badge_class = "badge-live" if mt5_connected else "badge-error"
+    mt5_badge_class = "swiss-badge swiss-badge--live" if mt5_connected else "swiss-badge swiss-badge--blocked"
     u.markdown(
-        f'<div class="sb-panel">'
-        f'<div class="sb-section-title">MT5 Terminal</div>'
+        f'<div class="swiss-metric-card">'
+        f'<div class="swiss-section-header">MT5 Terminal</div>'
         f'<div style="color:#b3b3b3; font-size:0.875rem;">'
         f'Connection: <span class="{mt5_badge_class}">{mt5_status}</span><br>'
-        f'Data feed: <span class="badge-neutral">read-only</span>'
+        f'Data feed: <span class="swiss-badge swiss-badge--neutral">read-only</span>'
         f'</div>'
         f'</div>',
         unsafe_allow_html=True,
@@ -942,12 +742,12 @@ def render_system_health(
     # Execution service
     _section_header(u, "Execution Service")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Execution Permission Service</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Execution Permission Service</div>'
         f'<div style="color:#b3b3b3; font-size:0.875rem;">'
-        f'Mode: <span class="badge-neutral">READ_ONLY</span><br>'
-        f'Armed: <span class="badge-neutral">false</span><br>'
-        f'Halted: <span class="badge-neutral">false</span>'
+        f'Mode: <span class="swiss-badge swiss-badge--neutral">READ_ONLY</span><br>'
+        f'Armed: <span class="swiss-badge swiss-badge--neutral">false</span><br>'
+        f'Halted: <span class="swiss-badge swiss-badge--neutral">false</span>'
         f'</div>'
         f'</div>',
         unsafe_allow_html=True,
@@ -960,9 +760,9 @@ def render_system_health(
             tick = mt5_data_provider.get_tick(symbol)
             if tick:
                 state_class = (
-                    "badge-live" if tick.data_state == DataState.LIVE else
-                    "badge-warning" if tick.data_state == DataState.STALE else
-                    "badge-error"
+                    "swiss-badge swiss-badge--live" if tick.data_state == DataState.LIVE else
+                    "swiss-badge swiss-badge" if tick.data_state == DataState.STALE else
+                    "swiss-badge swiss-badge--blocked"
                 )
                 u.markdown(
                     f"{tick.symbol} ({tick.broker_symbol}): "
@@ -986,7 +786,7 @@ def render_settings(
 ) -> None:
     """Settings / Profiles — execution mode and risk configuration."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("Settings / Profiles")
     u.caption("No live orders in V1")
 
@@ -994,11 +794,11 @@ def render_settings(
     if auth:
         mode = auth.execution_mode
         u.markdown(
-            f'<div class="sb-panel">'
-            f'<div class="sb-section-title">Execution Mode</div>'
+            f'<div class="swiss-metric-card">'
+            f'<div class="swiss-section-header">Execution Mode</div>'
             f'<div style="color:#b3b3b3; font-size:0.875rem;">'
-            f'Current mode: <span class="{ "badge-live" if auth.execution_mode == ExecutionMode.AUTONOMOUS_DEMO else "badge-neutral" }">{auth.execution_mode.value}</span><br>'
-            f'Armed: <span class="{ "badge-live" if auth.is_execution_allowed() else "badge-neutral" }">{auth.is_execution_allowed()}</span>'
+            f'Current mode: <span class="{ "swiss-badge swiss-badge--live" if auth.execution_mode == ExecutionMode.AUTONOMOUS_DEMO else "swiss-badge swiss-badge--neutral" }">{auth.execution_mode.value}</span><br>'
+            f'Armed: <span class="{ "swiss-badge swiss-badge--live" if auth.is_execution_allowed() else "swiss-badge swiss-badge--neutral" }">{auth.is_execution_allowed()}</span>'
             f'</div>'
             f'</div>',
             unsafe_allow_html=True,
@@ -1009,8 +809,8 @@ def render_settings(
             if auth.execution_mode == ExecutionMode.AUTONOMOUS_DEMO:
                 if u.button("Disable Execution", type="secondary", key="disable_exec_settings"):
                     auth.set_mode(ExecutionMode.READ_ONLY)
-                    st.sidebar.success("Execution disabled — READ_ONLY mode")
-                    st.rerun()
+                    u.sidebar.success("Execution disabled — READ_ONLY mode")
+                    u.rerun()
             else:
                 if u.button("Enable Demo Execution", type="primary", key="enable_exec_settings"):
                     from superbot.m11.auth import SessionStore
@@ -1018,19 +818,19 @@ def render_settings(
                     ss = SessionStore()
                     _sess, token = ss.create_session(role="owner")
                     auth.enable_execution(token, ss)
-                    st.rerun()
+                    u.rerun()
         with col2:
             if auth.execution_mode == ExecutionMode.AUTONOMOUS_DEMO:
                 if u.button("Emergency Stop", type="secondary", key="emergency_stop_settings"):
                     auth.set_mode(ExecutionMode.OFF)
-                    st.sidebar.error("Emergency stop activated — OFF mode")
-                    st.rerun()
+                    u.sidebar.error("Emergency stop activated — OFF mode")
+                    u.rerun()
 
     _section_header(u, "Risk Configuration")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Risk Limits</div>'
-        '<table class="sb-table">'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Risk Limits</div>'
+        '<table class="swiss-table">'
         "<thead><tr><th>Parameter</th><th>Value</th></tr></thead>"
         "<tbody>"
         f"<tr><td>Max Combined Open Risk</td><td>5.00%</td></tr>"
@@ -1042,8 +842,8 @@ def render_settings(
     )
 
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Instrument Configuration</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Instrument Configuration</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'Canonical symbols mapped to MT5 broker symbols:<br>'
         '&bull; XAUUSD → GOLD.i#<br>'
@@ -1058,8 +858,8 @@ def render_settings(
 
     _section_header(u, "Secrets")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Secrets</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Secrets</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'No secrets are stored or displayed in this interface.<br>'
         'All credentials are stored in protected local storage and never '
@@ -1070,8 +870,8 @@ def render_settings(
     )
 
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Configuration Source</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Configuration Source</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'Config source: local settings file.<br>'
         'Live orders enabled: false.<br>'
@@ -1098,13 +898,13 @@ def render_audit_library(
 ) -> None:
     """Audit / Experiment Library — synthetic fixture label only."""
     u = _get_ui(ui)
-    _inject_css(u)
+
     u.title("Audit / Experiment Library")
     u.caption("No live orders in V1")
     _badge(ui, source_label("synthetic_fixture"), "neutral")
     u.markdown(
-        '<div class="sb-panel">'
-        '<div class="sb-section-title">Audit Events</div>'
+        '<div class="swiss-metric-card">'
+        '<div class="swiss-section-header">Audit Events</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
         'Audit log entries from deterministic simulation. Not live broker data.'
         '</div>'
