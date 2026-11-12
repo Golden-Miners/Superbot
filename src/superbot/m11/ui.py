@@ -1,8 +1,8 @@
 """M11.2 — Superbot trading dashboard UI.
 
-Professional trading execution dashboard.
-All data sourced from live MT5 broker feed and deterministic services.
-No synthetic data, no fake metrics, no templated UI.
+Research, validation and internal-simulation workstation — not a live
+execution terminal. All values are internal simulation or read-only
+broker feed; no live orders in V1.
 """
 
 from __future__ import annotations
@@ -152,6 +152,9 @@ header { visibility: hidden; }
   margin-bottom: 1rem;
 }
 
+.stApp .sb-metric.pos { color: #00d4aa; }
+.stApp .sb-metric.neg { color: #ff4444; }
+
 .stApp .sb-flex {
   display: flex;
   gap: 1rem;
@@ -237,7 +240,7 @@ def _metric_card(ui: Any, label: str, value: str, variant: str = "neutral") -> N
     u.markdown(
         f'<div class="sb-panel">'
         f'<div class="sb-metric-label">{label}</div>'
-        f'<div class="metric-value {variant}">{value}</div>'
+        f'<div class="sb-metric {variant}">{value}</div>'
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -922,7 +925,6 @@ def render_system_health(
     _section_header(u, "System Components")
 
     # MT5 connection
-    mt5_ok = mt5_data_provider is not None and mt5_data_provider.is_connected()
     mt5_connected = mt5_data_provider.is_connected()
     mt5_status = "connected" if mt5_connected else "not connected"
     mt5_badge_class = "badge-live" if mt5_connected else "badge-error"
@@ -939,8 +941,6 @@ def render_system_health(
 
     # Execution service
     _section_header(u, "Execution Service")
-    if auth := None:  # no auth param in this renderer
-        pass
     u.markdown(
         '<div class="sb-panel">'
         '<div class="sb-section-title">Execution Permission Service</div>'
