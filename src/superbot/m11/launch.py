@@ -21,40 +21,46 @@ import threading
 import time
 
 from superbot.m11.auth import SessionStore
-from superbot.m11.execution_authorizer import ExecutionPermissionService
+from superbot.m11.execution_authorizer import (
+    ExecutionMode,
+    ExecutionPermissionService,
+)
 from superbot.m11.mt5_adapter import MT5ExecutionAdapter
 from superbot.m11.mt5_data_provider import MT5DataProvider
 from superbot.m11.trading_loop import TradingLoop
 
+# Capture real demo servers at import time so tests that patch
+# ExecutionPermissionService with MagicMock still get the real allowlist.
+_DEMO_SERVERS = ExecutionPermissionService.DEFAULT_DEMO_SERVERS
 
-def _setup_mt5() -> tuple[MT5DataProvider, ExecutionPermissionService, MT5ExecutionAdapter]:
+
+def _setup_mt5() -> tuple[MT5DataProvider, ExecutionPermissionService, MT5ExecutionAdapter] | None:
     """Connect to MT5, verify DEMO account, and wire up execution services.
 
-    Returns (provider, auth, adapter) on success; raises SystemExit(1)
-    on any failure.
+    Returns (provider, auth, adapter) on success; returns None on failure.
     """
     provider = MT5DataProvider()
     if not provider.connect():
         print("ERROR: Could not connect to MT5 terminal.", file=sys.stderr)
-        raise SystemExit(1)
+        return None
 
     account_info = provider.get_account_info()
     if account_info is None:
         print("ERROR: Could not read MT5 account info.", file=sys.stderr)
-        raise SystemExit(1)
+        return None
 
     trade_mode = account_info.get("trade_mode")
     server = account_info.get("server", "")
     if trade_mode != 0:
         print(f"ERROR: Account is not DEMO (trade_mode={trade_mode}).", file=sys.stderr)
-        raise SystemExit(1)
-    demo_servers = ExecutionPermissionService.DEFAULT_DEMO_SERVERS
+        return None
+    demo_servers = _DEMO_SERVERS
     if server not in demo_servers:
         print(
             f"ERROR: Account server '{server}' is not an approved demo server.",
             file=sys.stderr,
         )
-        raise SystemExit(1)
+        return None
 
     print(
         f"Connected to MT5 demo: login={account_info.get('login')}, "
@@ -62,11 +68,9 @@ def _setup_mt5() -> tuple[MT5DataProvider, ExecutionPermissionService, MT5Execut
     )
 
     auth = ExecutionPermissionService(mt5_data_provider=provider)
-    auth.LIVE_TRADING_ENABLED = True
-
-    session_store = SessionStore()
-    session, token = session_store.create_session(role="owner")
-    auth.enable_execution(token, session_store)
+    # Default to READ_ONLY — execution must be explicitly enabled via dashboard
+    # or API. Never auto-enable autonomous execution on startup.
+    auth.set_mode(ExecutionMode.READ_ONLY)
 
     adapter = MT5ExecutionAdapter(mt5_data_provider=provider, auth=auth)
 
@@ -105,7 +109,7 @@ def _run_trading_loop(provider: MT5DataProvider, auth: ExecutionPermissionServic
     loop.run()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Unified entry point for Superbot.
 
     Modes:
@@ -120,10 +124,19 @@ def main() -> int:
         default="dashboard",
         help="Run mode (default: dashboard)",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    # Always set up MT5 + execution services (dashboard needs live data too).
+    setup = _setup_mt5()
+    if setup is None:
+        return 1
+    provider, auth, adapter = setup
 
     if args.mode in ("trading", "both"):
-        provider, auth, adapter = _setup_mt5()
+        ss = SessionStore()
+        _sess, token = ss.create_session(role="owner")
+        auth.enable_execution(token, ss)
+
         if args.mode == "trading":
             _run_trading_loop(provider, auth, adapter)
             return 0
@@ -131,7 +144,6 @@ def main() -> int:
     if args.mode in ("dashboard", "both"):
         if args.mode == "both":
             # Start trading loop in a daemon thread so dashboard stays responsive
-            provider, auth, adapter = _setup_mt5()
             t = threading.Thread(
                 target=_run_trading_loop,
                 args=(provider, auth, adapter),

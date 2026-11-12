@@ -58,10 +58,9 @@ def test_main_creates_mt5_data_provider():
          patch.object(launch_mod, "MT5ExecutionAdapter", return_value=mock_adapter), \
          patch.object(launch_mod, "TradingLoop", return_value=mock_loop):
 
-        result = launch_mod.main()
-
-    mock_provider.connect.assert_called_once()
-    assert result == 0
+        result = launch_mod.main(["--mode", "dashboard"])
+        mock_provider.connect.assert_called_once()
+        assert result == 0
 
 
 def test_main_creates_execution_authorizer():
@@ -80,6 +79,7 @@ def test_main_creates_execution_authorizer():
 
     mock_auth = MagicMock()
     mock_auth.is_execution_allowed.return_value = True
+    mock_auth.LIVE_TRADING_ENABLED = False
     mock_adapter = MagicMock()
     mock_loop = MagicMock()
     mock_loop.run.return_value = 0
@@ -89,12 +89,11 @@ def test_main_creates_execution_authorizer():
          patch.object(launch_mod, "MT5ExecutionAdapter", return_value=mock_adapter), \
          patch.object(launch_mod, "TradingLoop", return_value=mock_loop):
 
-        main()
-
-    launch_mod.ExecutionPermissionService.assert_called_once_with(
-        mt5_data_provider=mock_provider
-    )
-    assert mock_auth.LIVE_TRADING_ENABLED is True
+        launch_mod.main(["--mode", "trading"])
+        launch_mod.ExecutionPermissionService.assert_called_once_with(
+            mt5_data_provider=mock_provider
+        )
+        assert mock_auth.LIVE_TRADING_ENABLED is False
 
 
 def test_main_creates_mt5_adapter():
@@ -122,11 +121,10 @@ def test_main_creates_mt5_adapter():
          patch.object(launch_mod, "MT5ExecutionAdapter", return_value=mock_adapter), \
          patch.object(launch_mod, "TradingLoop", return_value=mock_loop):
 
-        main()
-
-    launch_mod.MT5ExecutionAdapter.assert_called_once_with(
-        mt5_data_provider=mock_provider, auth=mock_auth
-    )
+        launch_mod.main(["--mode", "trading"])
+        launch_mod.MT5ExecutionAdapter.assert_called_once_with(
+            mt5_data_provider=mock_provider, auth=mock_auth
+        )
 
 
 def test_main_calls_loop_run():
@@ -154,7 +152,7 @@ def test_main_calls_loop_run():
          patch.object(launch_mod, "MT5ExecutionAdapter", return_value=mock_adapter), \
          patch.object(launch_mod, "TradingLoop", return_value=mock_loop):
 
-        main()
+        launch_mod.main(["--mode", "trading"])
 
     mock_loop.run.assert_called_once()
 
@@ -184,7 +182,7 @@ def test_main_returns_zero_on_success():
          patch.object(launch_mod, "MT5ExecutionAdapter", return_value=mock_adapter), \
          patch.object(launch_mod, "TradingLoop", return_value=mock_loop):
 
-        result = launch_mod.main()
+        result = launch_mod.main(["--mode", "dashboard"])
 
     assert result == 0
 
@@ -207,9 +205,8 @@ def test_main_returns_non_zero_on_connection_failure():
          patch.object(launch_mod, "MT5ExecutionAdapter", return_value=mock_adapter), \
          patch.object(launch_mod, "TradingLoop", return_value=mock_loop):
 
-        result = launch_mod.main()
-
-    assert result != 0
+        result = launch_mod.main(["--mode", "dashboard"])
+        assert result != 0
 
 
 def test_main_enable_execution_called():
@@ -237,9 +234,8 @@ def test_main_enable_execution_called():
          patch.object(launch_mod, "MT5ExecutionAdapter", return_value=mock_adapter), \
          patch.object(launch_mod, "TradingLoop", return_value=mock_loop):
 
-        main()
-
-    mock_auth.enable_execution.assert_called_once()
+        launch_mod.main(["--mode", "trading"])
+        mock_auth.enable_execution.assert_called_once()
 
 
 def test_main_session_store_created():
@@ -265,8 +261,9 @@ def test_main_session_store_created():
     with patch.object(launch_mod, "MT5DataProvider", return_value=mock_provider), \
          patch.object(launch_mod, "ExecutionPermissionService", return_value=mock_auth), \
          patch.object(launch_mod, "MT5ExecutionAdapter", return_value=mock_adapter), \
-         patch.object(launch_mod, "TradingLoop", return_value=mock_loop):
+         patch.object(launch_mod, "TradingLoop", return_value=mock_loop), \
+         patch.object(launch_mod, "SessionStore") as mock_ss:
 
-        main()
-
-    launch_mod.SessionStore.assert_called_once()
+        mock_ss.return_value.create_session.return_value = ("session", "token")
+        launch_mod.main(["--mode", "trading"])
+        mock_ss.assert_called_once()
