@@ -493,14 +493,47 @@ def render_overview(
     with c4:
         _metric_card(u, "Risk Capacity", "5.00%", "neutral")
 
+    # ---- Hard Gates -----------------------------------------------------
+    # Gate state is computed from live backend services, never hardcoded
+    # (DESIGN.md: critical states sourced from real backend, not mocked
+    # success; color is never the only signal — text + badge class).
+    mode = auth.get_mode() if auth else ExecutionMode.READ_ONLY
+    if mode == ExecutionMode.AUTONOMOUS_DEMO:
+        mode_variant, mode_text = "badge-live", "AUTONOMOUS_DEMO"
+    elif mode == ExecutionMode.READ_ONLY:
+        mode_variant, mode_text = "badge-neutral", "READ_ONLY"
+    else:
+        mode_variant, mode_text = "badge-error", "OFF"
+
+    mt5_connected = bool(mt5_data_provider and mt5_data_provider.is_connected())
+    mt5_variant = "badge-neutral" if mt5_connected else "badge-error"
+    mt5_text = "connected" if mt5_connected else "disconnected"
+
+    account_verified = False
+    server_allowlisted = False
+    if mt5_data_provider:
+        get_account_info = getattr(mt5_data_provider, "get_account_info", None)
+        if get_account_info:
+            account_info = get_account_info() or {}
+            account_verified = (
+                account_info.get("trade_mode")
+                == ExecutionPermissionService.TRADE_MODE_DEMO
+            )
+            server = account_info.get("server", "")
+            server_allowlisted = bool(auth) and server in auth.demo_servers
+    acct_variant = "badge-neutral" if account_verified else "badge-error"
+    acct_text = "verified" if account_verified else "not verified"
+    srv_variant = "badge-neutral" if server_allowlisted else "badge-error"
+    srv_text = "verified" if server_allowlisted else "not verified"
+
     u.markdown(
         '<div class="sb-panel">'
         '<div class="sb-section-title">Hard Gates</div>'
         '<div style="color:#b3b3b3; font-size:0.875rem;">'
-        '• Execution mode: <span class="badge-neutral">READ_ONLY</span><br>'
-        '• MT5 terminal: <span class="badge-warning">disconnected</span><br>'
-        '• Account verification: <span class="badge-error">not verified</span><br>'
-        '• Server allowlist: <span class="badge-warning">not verified</span>'
+        f'• Execution mode: <span class="{mode_variant}">{mode_text}</span><br>'
+        f'• MT5 terminal: <span class="{mt5_variant}">{mt5_text}</span><br>'
+        f'• Account verification: <span class="{acct_variant}">{acct_text}</span><br>'
+        f'• Server allowlist: <span class="{srv_variant}">{srv_text}</span>'
         '</div>'
         '</div>',
         unsafe_allow_html=True,
